@@ -1,5 +1,5 @@
 import re
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse, parse_qs
 import requests
 
 _COORD_RE = re.compile(r'^(-?\d+\.\d+),(-?\d+\.\d+)$')
@@ -46,6 +46,33 @@ def parse_google_maps_url(url: str) -> list:
     for wp in coord_segments:
         add(wp)
 
+    return result
+
+
+def parse_yandex_maps_url(url: str) -> list:
+    # rtext=lat,lng~lat,lng~... formatındaki waypoint'leri çeker
+    params = parse_qs(urlparse(url).query)
+    rtext = params.get('rtext', [''])[0]
+    if not rtext:
+        return []
+
+    result = []
+    seen: set[tuple] = set()
+    for segment in rtext.split('~'):
+        segment = segment.strip()
+        if not segment:
+            continue
+        parts = segment.split(',')
+        if len(parts) != 2:
+            continue
+        try:
+            lat, lng = float(parts[0]), float(parts[1])
+        except ValueError:
+            continue
+        key = (round(lat, 4), round(lng, 4))
+        if key not in seen:
+            seen.add(key)
+            result.append({'lat': lat, 'lng': lng})
     return result
 
 

@@ -14,7 +14,7 @@ from employees.models import Employee
 from workspaces.models import Workspace
 from .models import RouteGroup, Route, Stop
 from .serializers import RouteGroupSerializer, RouteSerializer, StopSerializer
-from .services import parse_google_maps_url, get_route_from_ors, get_route_from_mapbox, get_isochrone_from_ors, get_walking_matrix_from_ors
+from .services import parse_google_maps_url, parse_yandex_maps_url, get_route_from_ors, get_route_from_mapbox, get_isochrone_from_ors, get_walking_matrix_from_ors
 
 
 def _valid_uuid(value):
@@ -348,10 +348,14 @@ class RouteViewSet(viewsets.ModelViewSet):
         if not url:
             return Response({'error': 'url field is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        waypoints = parse_google_maps_url(url)
+        if 'yandex.' in url:
+            waypoints = parse_yandex_maps_url(url)
+        else:
+            waypoints = parse_google_maps_url(url)
+
         if not waypoints:
             return Response(
-                {'error': 'No coordinate waypoints found in the URL. Only lat,lng segments are parsed; named places are skipped.'},
+                {'error': 'URL içinde koordinat bulunamadı.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -368,9 +372,13 @@ class RouteViewSet(viewsets.ModelViewSet):
         if not url:
             return Response({'error': 'url field is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        waypoints = parse_google_maps_url(url)
+        if 'yandex.' in url:
+            waypoints = parse_yandex_maps_url(url)
+        else:
+            waypoints = parse_google_maps_url(url)
+
         if not waypoints:
-            return Response({'error': 'No waypoints found in URL'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'URL içinde koordinat bulunamadı.'}, status=status.HTTP_400_BAD_REQUEST)
 
         result = {'waypoints': waypoints, 'ors': None, 'mapbox': None, 'errors': {}}
 
