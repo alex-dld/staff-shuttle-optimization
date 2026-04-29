@@ -1,7 +1,7 @@
 import requests
 from django.conf import settings
 
-MAPBOX_GEOCODE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places/{query}.json'
+YANDEX_URL = 'https://geocode-maps.yandex.ru/v1/'
 
 
 def geocode_address(address: str) -> dict:
@@ -12,28 +12,26 @@ def geocode_address(address: str) -> dict:
       {'ok': False, 'reason': 'api_error', 'detail': str}
     """
     try:
-        resp = requests.get(
-            MAPBOX_GEOCODE_URL.format(query=requests.utils.quote(address)),
-            params={
-                'access_token': settings.MAPBOX_API_KEY,
-                'language': 'tr',
-                'country': 'tr',
-                'proximity': '28.8,40.0',  # Bursa merkezi
-                'limit': 1,
-            },
-            timeout=10,
-        )
+        resp = requests.get(YANDEX_URL, params={
+            'apikey': settings.YANDEX_API_KEY,
+            'geocode': address,
+            'lang': 'tr_TR',
+            'll': '29.06,40.19',
+            'spn': '0.8,0.6',
+            'results': 1,
+            'format': 'json',
+        }, timeout=10)
         resp.raise_for_status()
-        features = resp.json().get('features', [])
-        if not features:
+        members = resp.json()['response']['GeoObjectCollection']['featureMember']
+        if not members:
             return {'ok': False, 'reason': 'no_result'}
-        feature = features[0]
-        lng, lat = feature['geometry']['coordinates']
+        obj = members[0]['GeoObject']
+        lng_str, lat_str = obj['Point']['pos'].split()
         return {
             'ok': True,
-            'lat': lat,
-            'lng': lng,
-            'api_address': feature.get('place_name', address),
+            'lat': float(lat_str),
+            'lng': float(lng_str),
+            'api_address': obj['metaDataProperty']['GeocoderMetaData']['text'],
         }
     except requests.RequestException as exc:
         return {'ok': False, 'reason': 'api_error', 'detail': str(exc)}

@@ -88,7 +88,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 ORS_API_KEY = env('ORS_API_KEY')
-# YANDEX_API_KEY = env('Yandex_Api_Key')
+YANDEX_API_KEY = env('Yandex_Api_Key')
 MAPBOX_API_KEY = env('MAPBOX_API_KEY')
 
 REST_FRAMEWORK = {
