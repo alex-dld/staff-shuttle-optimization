@@ -1,5 +1,5 @@
 import re
-from urllib.parse import unquote, urlparse, parse_qs
+from urllib.parse import unquote
 import requests
 
 _COORD_RE = re.compile(r'^(-?\d+\.\d+),(-?\d+\.\d+)$')
@@ -46,33 +46,6 @@ def parse_google_maps_url(url: str) -> list:
     for wp in coord_segments:
         add(wp)
 
-    return result
-
-
-def parse_yandex_maps_url(url: str) -> list:
-    # rtext=lat,lng~lat,lng~... formatındaki waypoint'leri çeker
-    params = parse_qs(urlparse(url).query)
-    rtext = params.get('rtext', [''])[0]
-    if not rtext:
-        return []
-
-    result = []
-    seen: set[tuple] = set()
-    for segment in rtext.split('~'):
-        segment = segment.strip()
-        if not segment:
-            continue
-        parts = segment.split(',')
-        if len(parts) != 2:
-            continue
-        try:
-            lat, lng = float(parts[0]), float(parts[1])
-        except ValueError:
-            continue
-        key = (round(lat, 4), round(lng, 4))
-        if key not in seen:
-            seen.add(key)
-            result.append({'lat': lat, 'lng': lng})
     return result
 
 
@@ -123,23 +96,7 @@ def get_walking_matrix_from_ors(locations: list, source_indices: list, destinati
     return response.json()['durations']
 
 
-def get_route_from_ors(waypoints: list, api_key: str) -> dict:
-    coordinates = [[wp['lng'], wp['lat']] for wp in waypoints]
-    response = requests.post(
-        'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
-        json={'coordinates': coordinates},
-        headers={
-            'Authorization': api_key,
-            'Content-Type': 'application/json',
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-    return response.json()
-
-
 def get_route_from_mapbox(waypoints: list, api_key: str) -> dict:
-    # Mapbox accepts max 25 waypoints; coords are lng,lat separated by ;
     coords = ';'.join(f"{wp['lng']},{wp['lat']}" for wp in waypoints)
     response = requests.get(
         f'https://api.mapbox.com/directions/v5/mapbox/driving/{coords}',
@@ -153,7 +110,6 @@ def get_route_from_mapbox(waypoints: list, api_key: str) -> dict:
     response.raise_for_status()
     data = response.json()
     route = data['routes'][0]
-    # Normalize to GeoJSON FeatureCollection (same shape as ORS response)
     return {
         'type': 'FeatureCollection',
         'features': [{
