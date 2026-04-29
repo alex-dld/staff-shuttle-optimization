@@ -277,6 +277,58 @@ textarea { height: 72px; resize: vertical; }
   transition: transform 0.15s;
 }
 .emp-marker:hover { transform: scale(1.25); }
+
+/* ── Add-employee modal ── */
+.add-emp-preview-box {
+  background: #0f1f2a; border: 1px solid #1abc9c;
+  border-radius: 6px; padding: 10px 12px;
+  font-size: 0.78rem; color: #1abc9c; margin-bottom: 10px; line-height: 1.5;
+}
+.add-emp-preview-box .preview-label {
+  font-size: 0.68rem; color: #555; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 3px;
+}
+.btn-preview {
+  width: 100%; padding: 9px; background: transparent;
+  border: 1px solid #1abc9c; border-radius: 6px; color: #1abc9c;
+  font-size: 0.83rem; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; margin-bottom: 8px;
+}
+.btn-preview:hover { background: #0f2a25; }
+.btn-preview:disabled { border-color: #2a2a4a; color: #555; cursor: not-allowed; }
+/* Önizleme onay paneli — haritanın sol altında sabit */
+#add-emp-confirm-panel {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  left: 336px;
+  z-index: 1500;
+  background: #1a1a2e;
+  border: 1px solid #f39c12;
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-width: 300px;
+  max-width: 420px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+#add-emp-confirm-panel .cp-label {
+  font-size: 0.67rem; color: #f39c12; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 4px;
+}
+#add-emp-confirm-panel .cp-address {
+  font-size: 0.82rem; color: #e0e0e0; margin-bottom: 10px; line-height: 1.4;
+}
+#add-emp-confirm-panel .cp-actions {
+  display: flex; gap: 8px;
+}
+#add-emp-confirm-panel .cp-actions button {
+  flex: 1; padding: 7px; border-radius: 6px;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer; border: none;
+}
+.cp-btn-save   { background: #1abc9c; color: #0a1a14; }
+.cp-btn-save:hover   { background: #17a589; }
+.cp-btn-edit   { background: transparent; border: 1px solid #555 !important; color: #aaa; }
+.cp-btn-edit:hover   { border-color: #888 !important; color: #e0e0e0; }
 .emp-popup-code { font-weight: 700; color: #7c8cf8; font-size: 0.82rem; }
 .emp-popup-addr { font-size: 0.72rem; color: #888; margin-top: 2px; line-height: 1.4; }
 
@@ -342,6 +394,7 @@ textarea { height: 72px; resize: vertical; }
     <div style="display:flex;gap:6px;">
       <button class="btn-show" id="emp-toggle-btn" style="font-size:0.68rem;padding:3px 8px;">Göster</button>
       <button class="btn-show" id="emp-manage-btn" style="font-size:0.68rem;padding:3px 8px;">Yönet</button>
+      <button class="btn-show" id="add-emp-btn" style="font-size:0.68rem;padding:3px 8px;">+ Ekle</button>
     </div>
   </div>
 </div>
@@ -462,6 +515,43 @@ textarea { height: 72px; resize: vertical; }
     <div id="nearby-error" class="error-box" style="display:none;margin-top:10px;"></div>
     <div class="modal-actions" style="margin-top:14px;">
       <button class="btn-modal-cancel" id="nearby-close">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- Önizleme onay paneli -->
+<div id="add-emp-confirm-panel">
+  <div class="cp-label">📍 Bulunan konum — önizleme</div>
+  <div class="cp-address" id="cp-api-address"></div>
+  <div class="cp-actions">
+    <button class="cp-btn-save" id="cp-save-btn">✓ Kaydet</button>
+    <button class="cp-btn-edit" id="cp-edit-btn">✎ Düzenle</button>
+  </div>
+</div>
+
+<!-- Add-employee modal -->
+<div class="modal-backdrop" id="add-emp-modal">
+  <div class="modal" style="width:380px;">
+    <div class="modal-title">Yeni Çalışan Ekle</div>
+    <div id="add-emp-error" class="error-box" style="display:none;"></div>
+    <div class="field">
+      <label>Personel Kodu (Kişi Kodu)</label>
+      <input type="text" id="add-emp-code" placeholder="örn. W2AM">
+    </div>
+    <div class="field">
+      <label>Adres</label>
+      <textarea id="add-emp-address" style="height:60px;"
+        placeholder="örn. Osmangazi, Atatürk Cad. No:5, Bursa"></textarea>
+    </div>
+    <button class="btn-preview" id="add-emp-preview-btn">🔍 Önizle</button>
+    <div id="add-emp-preview-box" class="add-emp-preview-box" style="display:none;">
+      <div class="preview-label">Yandex'in bulduğu adres</div>
+      <div id="add-emp-api-address"></div>
+      <div style="margin-top:4px;font-size:0.72rem;color:#555;" id="add-emp-coords"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="add-emp-cancel">İptal</button>
+      <button class="btn-modal-save" id="add-emp-save-btn" disabled>Kaydet</button>
     </div>
   </div>
 </div>
@@ -1776,5 +1866,220 @@ textarea { height: 72px; resize: vertical; }
   renderGroups(GROUPS_DATA);
   loadGroups();
   loadWorkspaceEmployees();
+
+  // ── Add-employee modal ──────────────────────────────────────────────────
+  let addEmpPreviewMarker = null;
+  let addEmpPreviewData = null;
+
+  function openAddEmpModal() {
+    document.getElementById('add-emp-code').value = '';
+    document.getElementById('add-emp-address').value = '';
+    document.getElementById('add-emp-error').style.display = 'none';
+    document.getElementById('add-emp-preview-box').style.display = 'none';
+    document.getElementById('add-emp-save-btn').disabled = true;
+    addEmpPreviewData = null;
+    if (addEmpPreviewMarker) { map.removeLayer(addEmpPreviewMarker); addEmpPreviewMarker = null; }
+    document.getElementById('add-emp-modal').classList.add('open');
+    document.getElementById('add-emp-code').focus();
+  }
+
+  function closeAddEmpModal() {
+    document.getElementById('add-emp-modal').classList.remove('open');
+    if (addEmpPreviewMarker) { map.removeLayer(addEmpPreviewMarker); addEmpPreviewMarker = null; }
+    document.getElementById('add-emp-confirm-panel').style.display = 'none';
+    addEmpPreviewData = null;
+  }
+
+  function showConfirmPanel(apiAddress) {
+    document.getElementById('cp-api-address').textContent = apiAddress;
+    document.getElementById('add-emp-confirm-panel').style.display = 'block';
+  }
+
+  // "Düzenle" — paneli kapat, modalı geri aç
+  document.getElementById('cp-edit-btn').addEventListener('click', function() {
+    document.getElementById('add-emp-confirm-panel').style.display = 'none';
+    document.getElementById('add-emp-modal').classList.add('open');
+  });
+
+  document.getElementById('add-emp-btn').addEventListener('click', openAddEmpModal);
+  document.getElementById('add-emp-cancel').addEventListener('click', closeAddEmpModal);
+  document.getElementById('add-emp-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('add-emp-modal')) closeAddEmpModal();
+  });
+
+  document.getElementById('add-emp-preview-btn').addEventListener('click', async function() {
+    const address    = document.getElementById('add-emp-address').value.trim();
+    const errEl      = document.getElementById('add-emp-error');
+    const previewBox = document.getElementById('add-emp-preview-box');
+    const previewBtn = document.getElementById('add-emp-preview-btn');
+    const saveBtn    = document.getElementById('add-emp-save-btn');
+
+    errEl.style.display = 'none';
+    previewBox.style.display = 'none';
+    saveBtn.disabled = true;
+    addEmpPreviewData = null;
+
+    if (!address) {
+      errEl.textContent = 'Adres alanı boş olamaz.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (addEmpPreviewMarker) { map.removeLayer(addEmpPreviewMarker); addEmpPreviewMarker = null; }
+
+    previewBtn.disabled = true;
+    previewBtn.textContent = '🔍 Konumlanıyor…';
+
+    try {
+      const resp = await fetch('/api/employees/geocode/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ address }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        errEl.textContent = data.error || 'Geocode hatası.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      addEmpPreviewData = { lat: data.lat, lng: data.lng, api_address: data.api_address };
+
+      document.getElementById('add-emp-api-address').textContent = data.api_address;
+      document.getElementById('add-emp-coords').textContent =
+        'Koordinat: ' + data.lat.toFixed(5) + ', ' + data.lng.toFixed(5);
+      previewBox.style.display = 'block';
+
+      addEmpPreviewMarker = L.marker([data.lat, data.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:28px;height:28px;border-radius:50%;'
+            + 'background:linear-gradient(135deg,#f39c12,#e67e22);'
+            + 'border:3px solid #fff;display:flex;align-items:center;'
+            + 'justify-content:center;font-size:13px;color:#fff;'
+            + 'box-shadow:0 0 0 4px rgba(243,156,18,0.35),0 2px 8px rgba(0,0,0,0.4);">📍</div>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+        zIndexOffset: 1000,
+      })
+        .bindPopup(
+          '<div style="min-width:180px;">'
+          + '<div style="font-size:0.78rem;color:#e67e22;font-weight:700;margin-bottom:4px;">Önizleme (kaydedilmedi)</div>'
+          + '<div style="font-size:0.72rem;color:#333;">' + data.api_address + '</div>'
+          + '</div>'
+        )
+        .addTo(map);
+
+      map.flyTo([data.lat, data.lng], 15, { duration: 1.0 });
+      addEmpPreviewMarker.openPopup();
+      saveBtn.disabled = false;
+
+      // Modal'ı kapat, haritayı göster, onay panelini aç
+      document.getElementById('add-emp-modal').classList.remove('open');
+      showConfirmPanel(data.api_address);
+
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message;
+      errEl.style.display = 'block';
+    } finally {
+      previewBtn.disabled = false;
+      previewBtn.textContent = '🔍 Önizle';
+    }
+  });
+
+  async function saveEmployee(triggerBtn) {
+    const code    = document.getElementById('add-emp-code').value.trim();
+    const address = document.getElementById('add-emp-address').value.trim();
+    const errEl   = document.getElementById('add-emp-error');
+
+    // Personel kodu boşsa modalı geri aç
+    if (!code) {
+      document.getElementById('add-emp-confirm-panel').style.display = 'none';
+      document.getElementById('add-emp-modal').classList.add('open');
+      document.getElementById('add-emp-error').textContent = 'Personel kodu boş olamaz.';
+      document.getElementById('add-emp-error').style.display = 'block';
+      return;
+    }
+
+    const origText = triggerBtn.textContent;
+    triggerBtn.disabled = true;
+    triggerBtn.textContent = 'Kaydediliyor…';
+
+    try {
+      const resp = await fetch('/api/employees/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+          personnel_code: code,
+          address: address,
+          api_address: addEmpPreviewData.api_address,
+          lat: addEmpPreviewData.lat,
+          lng: addEmpPreviewData.lng,
+          geocode_status: 'ok',
+        }),
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        const msg = data.personnel_code
+          ? data.personnel_code[0]
+          : (data.error || JSON.stringify(data));
+        // Hata varsa modalı aç, hatayı göster
+        document.getElementById('add-emp-confirm-panel').style.display = 'none';
+        document.getElementById('add-emp-modal').classList.add('open');
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+        triggerBtn.disabled = false;
+        triggerBtn.textContent = origText;
+        return;
+      }
+
+      if (addEmpPreviewMarker) { map.removeLayer(addEmpPreviewMarker); addEmpPreviewMarker = null; }
+
+      ALL_EMPLOYEES.push(data);
+
+      // Marker grubunu yoksa oluştur, her durumda yeni çalışanı göster
+      if (!empMarkerGroup) {
+        empMarkerGroup = L.layerGroup().addTo(map);
+        empMarkersVisible = true;
+        const btn = document.getElementById('emp-toggle-btn');
+        if (btn) { btn.textContent = 'Gizle'; btn.classList.add('active'); }
+      }
+      L.marker([data.lat, data.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="emp-marker">👤</div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        }),
+      })
+        .bindPopup(
+          '<div class="emp-popup-code">' + data.personnel_code + '</div>'
+          + '<div class="emp-popup-addr">' + data.address + '</div>'
+        )
+        .addTo(empMarkerGroup);
+
+      map.flyTo([data.lat, data.lng], 15, { duration: 0.8 });
+
+      closeAddEmpModal();
+      showToast('✓ ' + data.personnel_code + ' başarıyla eklendi.');
+
+    } catch (err) {
+      document.getElementById('add-emp-confirm-panel').style.display = 'none';
+      document.getElementById('add-emp-modal').classList.add('open');
+      errEl.textContent = 'Bağlantı hatası: ' + err.message;
+      errEl.style.display = 'block';
+      triggerBtn.disabled = false;
+      triggerBtn.textContent = origText;
+    }
+  }
+
+  document.getElementById('add-emp-save-btn').addEventListener('click', function() {
+    saveEmployee(this);
+  });
+  document.getElementById('cp-save-btn').addEventListener('click', function() {
+    saveEmployee(this);
+  });
+
 </script>
 {% endblock %}

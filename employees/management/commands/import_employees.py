@@ -2,47 +2,10 @@ import time
 from pathlib import Path
 
 import openpyxl
-import requests
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from employees.models import Employee
-
-YANDEX_URL = 'https://geocode-maps.yandex.ru/v1/'
-# Bursa bounding box — arama alanını kısıtlar, hatalı şehir eşleşmelerini önler
-BURSA_LL = '28.8,40.0'
-BURSA_SPN = '0.8,0.6'
-
-
-def _geocode(address: str, api_key: str) -> dict:
-    """
-    Returns {'lat': float, 'lng': float, 'api_address': str} on success,
-    or {'lat': None, 'lng': None, 'api_address': ''} on failure.
-    """
-    try:
-        resp = requests.get(
-            YANDEX_URL,
-            params={
-                'apikey': api_key,
-                'geocode': address,
-                'lang': 'tr_TR',
-                'll': BURSA_LL,
-                'spn': BURSA_SPN,
-                'results': 1,
-                'format': 'json',
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        members = resp.json()['response']['GeoObjectCollection']['featureMember']
-        if not members:
-            return {'lat': None, 'lng': None, 'api_address': ''}
-        obj = members[0]['GeoObject']
-        lng_str, lat_str = obj['Point']['pos'].split()
-        api_address = obj['metaDataProperty']['GeocoderMetaData']['text']
-        return {'lat': float(lat_str), 'lng': float(lng_str), 'api_address': api_address}
-    except Exception:
-        return {'lat': None, 'lng': None, 'api_address': ''}
+from employees.utils import geocode_address
 
 
 class Command(BaseCommand):
@@ -72,7 +35,6 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f'File not found: {xlsx_path}'))
             return
 
-        api_key = settings.YANDEX_API_KEY
         delay = options['delay']
         output_path = Path(options['output'])
 
@@ -111,8 +73,8 @@ class Command(BaseCommand):
                 })
                 continue
 
-            geo = _geocode(address, api_key)
-            if geo['lat'] is not None:
+            geo = geocode_address(address)
+            if geo['ok']:
                 emp.lat = geo['lat']
                 emp.lng = geo['lng']
                 emp.api_address = geo['api_address']
