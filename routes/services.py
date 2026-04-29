@@ -97,13 +97,7 @@ def get_walking_matrix_from_ors(locations: list, source_indices: list, destinati
 
 
 def get_route_from_ors(waypoints: list, api_key: str) -> dict:
-    """
-    Call OpenRouteService Directions API with a list of {lat, lng} waypoints.
-    Returns the GeoJSON FeatureCollection for the driving route.
-    """
-    # ORS expects [lng, lat] order
     coordinates = [[wp['lng'], wp['lat']] for wp in waypoints]
-
     response = requests.post(
         'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
         json={'coordinates': coordinates},
@@ -115,3 +109,34 @@ def get_route_from_ors(waypoints: list, api_key: str) -> dict:
     )
     response.raise_for_status()
     return response.json()
+
+
+def get_route_from_mapbox(waypoints: list, api_key: str) -> dict:
+    # Mapbox accepts max 25 waypoints; coords are lng,lat separated by ;
+    coords = ';'.join(f"{wp['lng']},{wp['lat']}" for wp in waypoints)
+    response = requests.get(
+        f'https://api.mapbox.com/directions/v5/mapbox/driving/{coords}',
+        params={
+            'access_token': api_key,
+            'geometries': 'geojson',
+            'overview': 'full',
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    data = response.json()
+    route = data['routes'][0]
+    # Normalize to GeoJSON FeatureCollection (same shape as ORS response)
+    return {
+        'type': 'FeatureCollection',
+        'features': [{
+            'type': 'Feature',
+            'geometry': route['geometry'],
+            'properties': {
+                'segments': [{
+                    'distance': route['distance'],
+                    'duration': route['duration'],
+                }],
+            },
+        }],
+    }

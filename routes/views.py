@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from django.conf import settings
 from django.db import DatabaseError
 from django.shortcuts import render, redirect
@@ -12,7 +14,7 @@ from employees.models import Employee
 from workspaces.models import Workspace
 from .models import RouteGroup, Route, Stop
 from .serializers import RouteGroupSerializer, RouteSerializer, StopSerializer
-from .services import parse_google_maps_url, get_route_from_ors, get_isochrone_from_ors, get_walking_matrix_from_ors
+from .services import parse_google_maps_url, get_route_from_ors, get_route_from_mapbox, get_isochrone_from_ors, get_walking_matrix_from_ors
 
 
 def _valid_uuid(value):
@@ -354,11 +356,38 @@ class RouteViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            geojson = get_route_from_ors(waypoints, settings.ORS_API_KEY)
+            geojson = get_route_from_mapbox(waypoints, settings.MAPBOX_API_KEY)
         except Exception as exc:
-            return Response({'error': f'ORS API error: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'error': f'Mapbox API error: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response({'waypoints': waypoints, 'geojson': geojson})
+
+    @action(detail=False, methods=['post'], url_path='compare-routing')
+    def compare_routing(self, request):
+        url = request.data.get('url')
+        if not url:
+            return Response({'error': 'url field is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        waypoints = parse_google_maps_url(url)
+        if not waypoints:
+            return Response({'error': 'No waypoints found in URL'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = {'waypoints': waypoints, 'ors': None, 'mapbox': None, 'errors': {}}
+
+        try:
+            result['ors'] = get_route_from_ors(waypoints, settings.ORS_API_KEY)
+        except Exception as exc:
+            result['errors']['ors'] = str(exc)
+
+        try:
+            result['mapbox'] = get_route_from_mapbox(waypoints, settings.MAPBOX_API_KEY)
+        except Exception as exc:
+            result['errors']['mapbox'] = str(exc)
+
+        output_path = Path(settings.BASE_DIR) / 'routing_comparison.json'
+        output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+
+        return Response({**result, 'saved_to': str(output_path)})
 
 
 class StopViewSet(viewsets.ModelViewSet):
