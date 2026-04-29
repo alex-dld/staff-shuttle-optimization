@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Servis Optimizasyonu{% endblock %}</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #111;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    #navbar {
+      height: 48px;
+      min-height: 48px;
+      background: #12122a;
+      border-bottom: 1px solid #2a2a4a;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      justify-content: space-between;
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+
+    #navbar .brand {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #7c8cf8;
+      letter-spacing: 0.5px;
+    }
+
+    #navbar .ws-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: #888;
+    }
+
+    #navbar .ws-label { color: #888; }
+    #navbar .ws-name { color: #e0e0e0; font-weight: 600; }
+
+    #navbar .ws-change {
+      background: transparent;
+      border: 1px solid #3a3a5a;
+      border-radius: 4px;
+      color: #7c8cf8;
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s;
+    }
+    #navbar .ws-change:hover { border-color: #7c8cf8; background: #1a1a3a; }
+
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    #sidebar {
+      width: 320px;
+      min-width: 320px;
+      background: #1a1a2e;
+      border-right: 1px solid #2a2a4a;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    #map-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    {% block extra_style %}{% endblock %}
+  </style>
+</head>
+<body>
+  <nav id="navbar">
+    <span class="brand">Servis Optimizasyonu</span>
+    {% block navbar_right %}{% endblock %}
+  </nav>
+  <div id="main">
+    <div id="sidebar">
+      {% block sidebar %}{% endblock %}
+    </div>
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

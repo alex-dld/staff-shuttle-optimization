@@ -1,0 +1,1780 @@
+{% extends "base.html" %}
+{% block title %}Harita — {{ workspace.name }}{% endblock %}
+
+{% block navbar_right %}
+<div class="ws-info">
+  <span class="ws-label">Operasyon:</span>
+  <span class="ws-name">{{ workspace.name }}</span>
+  <a href="/" class="ws-change">Değiştir</a>
+</div>
+{% endblock %}
+
+{% block extra_style %}
+/* ── Sidebar sections ── */
+.sb-section {
+  border-bottom: 1px solid #2a2a4a;
+  padding: 14px 16px;
+}
+.sb-section:last-child { border-bottom: none; }
+.sb-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #7c8cf8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.sb-count {
+  background: #2a2a4a;
+  color: #888;
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+/* ── Group cards ── */
+.group-card {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.group-card:last-child { margin-bottom: 0; }
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #14142a;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #2a2a4a;
+}
+.group-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e0e0e0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+.group-header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.group-routes { padding: 4px 10px; }
+.group-route-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #1e1e38;
+}
+.group-route-row:last-child { border-bottom: none; }
+.dir-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.dir-label { font-size: 0.76rem; color: #aaa; }
+.dir-sub { font-size: 0.67rem; color: #555; margin-top: 1px; }
+.dir-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: 6px; }
+.route-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.empty-routes { font-size: 0.8rem; color: #555; text-align: center; padding: 16px 0; }
+
+/* ── Buttons ── */
+.btn-show {
+  background: transparent;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  color: #7c8cf8;
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-show:hover { border-color: #7c8cf8; background: #1a1a3a; }
+.btn-show.active { background: #7c8cf8; color: #fff; border-color: #7c8cf8; }
+
+.btn-link-add {
+  background: transparent;
+  border: 1px dashed #3a3a5a;
+  border-radius: 4px;
+  color: #666;
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-link-add:hover { border-color: #7c8cf8; color: #7c8cf8; border-style: solid; }
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #666;
+  font-size: 0.75rem;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+.btn-icon:hover { border-color: #555; color: #ccc; }
+.btn-icon.edit:hover { border-color: #7c8cf8; color: #7c8cf8; background: #1a1a3a; }
+.btn-icon.del:hover  { border-color: #e74c3c; color: #e74c3c; background: #2a0f0f; }
+
+/* ── Collapsible ── */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+.collapsible-header .toggle-arrow { font-size: 0.7rem; color: #555; transition: transform 0.2s; }
+.collapsible-header.open .toggle-arrow { transform: rotate(180deg); }
+.collapsible-body { margin-top: 12px; }
+
+/* ── Form elements ── */
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label { font-size: 0.73rem; color: #888; }
+input[type=text], textarea {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+}
+input[type=text]:focus, textarea:focus { border-color: #7c8cf8; }
+textarea { height: 72px; resize: vertical; }
+
+/* ── Color picker ── */
+.cp-wrap { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.cp-swatches { display: grid; grid-template-columns: repeat(5, 28px); gap: 5px; }
+.cp-swatch {
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  border: none; box-sizing: border-box;
+  outline: 2px solid transparent; outline-offset: 0;
+  transition: opacity 0.12s, outline-offset 0.12s;
+}
+.cp-swatch:hover { opacity: 0.8; }
+.cp-swatch.selected { outline-color: #fff; outline-offset: 2px; }
+.cp-plus {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px dashed #555; background: transparent;
+  color: #888; font-size: 15px; line-height: 1; padding: 0;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: border-color 0.15s, color 0.15s;
+}
+.cp-plus:hover { border-color: #888; color: #ccc; }
+.cp-popup {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 600;
+  background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 10px;
+  padding: 14px 14px 12px; width: 218px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+}
+.cp-popup-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.cp-preview { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #333; flex-shrink: 0; }
+.cp-hex { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #aaa; cursor: pointer; letter-spacing: 0.5px; flex: 1; user-select: none; }
+.cp-hex:hover { color: #fff; }
+.cp-slider-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+.cp-lbl { font-size: 0.7rem; font-weight: 700; width: 10px; }
+.cp-lbl.r { color: #e74c3c; } .cp-lbl.g { color: #2ecc71; } .cp-lbl.b { color: #3498db; }
+.cp-range { flex: 1; height: 3px; cursor: pointer; accent-color: #7c8cf8; }
+.cp-num { width: 40px; background: #0f0f1a; border: 1px solid #2a2a4a; border-radius: 4px; color: #e0e0e0; font-size: 0.73rem; padding: 2px 3px; text-align: center; outline: none; }
+.cp-num:focus { border-color: #7c8cf8; }
+.cp-pick-btn { width: 100%; margin-top: 10px; padding: 7px; background: #7c8cf8; border: none; border-radius: 6px; color: #fff; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.cp-pick-btn:hover { background: #5a6cf5; }
+
+/* ── Action buttons ── */
+.btn-save { width: 100%; padding: 9px; background: #7c8cf8; border: none; border-radius: 6px; color: #fff; font-size: 0.83rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-save:hover { background: #5a6cf5; }
+.btn-save:disabled { background: #3a3a5a; cursor: not-allowed; }
+
+/* ── Status boxes ── */
+.error-box { background: #2a0f0f; border: 1px solid #5a2a2a; border-radius: 6px; padding: 8px 10px; font-size: 0.78rem; color: #f88; margin-bottom: 8px; }
+.preview-info { background: #0f0f1a; border: 1px solid #2a2a4a; border-radius: 6px; padding: 10px; font-size: 0.78rem; color: #888; margin-bottom: 8px; }
+
+/* ── Employee modal ── */
+.modal-wide { width: 500px; max-width: calc(100vw - 40px); }
+.emp-search-wrap { position: relative; margin-bottom: 10px; }
+.emp-search-wrap input {
+  padding-left: 30px;
+}
+.emp-search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 0.8rem; color: #555; pointer-events: none;
+}
+.emp-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.emp-sel-count { font-size: 0.72rem; color: #888; }
+.emp-toolbar-btns { display: flex; gap: 6px; }
+.btn-emp-sel {
+  background: transparent; border: 1px solid #3a3a5a; border-radius: 4px;
+  color: #888; font-size: 0.68rem; padding: 3px 8px; cursor: pointer;
+}
+.btn-emp-sel:hover { border-color: #7c8cf8; color: #7c8cf8; }
+.emp-list {
+  max-height: 360px; overflow-y: auto; border: 1px solid #2a2a4a;
+  border-radius: 6px; background: #0f0f1a;
+}
+.emp-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #1a1a2e;
+  transition: background 0.1s;
+}
+.emp-row:last-child { border-bottom: none; }
+.emp-row:hover { background: #14142a; }
+.emp-row input[type=checkbox] { margin-top: 2px; flex-shrink: 0; accent-color: #7c8cf8; cursor: pointer; }
+.emp-code { font-size: 0.75rem; font-weight: 700; color: #7c8cf8; white-space: nowrap; flex-shrink: 0; width: 68px; }
+.emp-addr { font-size: 0.72rem; color: #aaa; line-height: 1.4; }
+.emp-empty { padding: 24px; text-align: center; font-size: 0.8rem; color: #555; }
+
+/* ── Stop list in sidebar ── */
+.stop-list { padding: 2px 10px 8px 10px; }
+.stop-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; border-bottom: 1px solid #1a1a2e;
+}
+.stop-item:last-child { border-bottom: none; }
+.stop-num {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #fff; font-weight: 700;
+}
+.stop-name { flex: 1; font-size: 0.75rem; color: #ccc; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* ── Nearby employees panel ── */
+.nearby-stat { font-size: 0.78rem; color: #7c8cf8; margin-bottom: 10px; font-weight: 600; }
+.nearby-emp-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 7px 10px; border-bottom: 1px solid #1a1a2e; cursor: pointer;
+  transition: background 0.1s;
+}
+.nearby-emp-row:last-child { border-bottom: none; }
+.nearby-emp-row:hover { background: #14142a; }
+.iso-badge {
+  display: inline-block; font-size: 0.68rem; color: #1abc9c;
+  border: 1px solid #1abc9c; border-radius: 10px; padding: 1px 7px; margin-bottom: 8px;
+}
+
+/* ── Employee map markers ── */
+.emp-marker {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, #7c8cf8 0%, #5a6cf5 100%);
+  border: 2px solid #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff;
+  box-shadow: 0 2px 8px rgba(124,140,248,0.45);
+  transition: transform 0.15s;
+}
+.emp-marker:hover { transform: scale(1.25); }
+.emp-popup-code { font-weight: 700; color: #7c8cf8; font-size: 0.82rem; }
+.emp-popup-addr { font-size: 0.72rem; color: #888; margin-top: 2px; line-height: 1.4; }
+
+/* ── Map mode toggle ── */
+#map-mode-btn {
+  position: absolute;
+  bottom: 24px;
+  right: 10px;
+  z-index: 1000;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 2px solid rgba(0,0,0,0.15);
+  background: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+#map-mode-btn:hover { background: #f0f0f0; }
+
+/* ── Modal ── */
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 2000; align-items: center; justify-content: center; }
+.modal-backdrop.open { display: flex; }
+.modal { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px 20px; width: 340px; max-width: calc(100vw - 40px); }
+.modal-title { font-size: 0.95rem; font-weight: 700; color: #e0e0e0; margin-bottom: 18px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+.btn-modal-cancel { flex: 1; padding: 9px; background: transparent; border: 1px solid #3a3a5a; border-radius: 6px; color: #888; font-size: 0.83rem; cursor: pointer; }
+.btn-modal-cancel:hover { border-color: #666; color: #ccc; }
+.btn-modal-save { flex: 2; padding: 9px; background: #7c8cf8; border: none; border-radius: 6px; color: #fff; font-size: 0.83rem; font-weight: 600; cursor: pointer; }
+.btn-modal-save:hover { background: #5a6cf5; }
+.btn-modal-save:disabled { background: #3a3a5a; cursor: not-allowed; }
+{% endblock %}
+
+{% block sidebar %}
+<div class="sb-section">
+  <div class="collapsible-header open" id="groups-toggle">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="sb-title">Rota Grupları</span>
+      <span class="sb-count" id="group-count">0</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="toggle-all-btn" class="btn-show" style="font-size:0.68rem;padding:3px 8px;" onclick="event.stopPropagation()">Tümünü Göster</button>
+      <button id="calculate-all-btn" class="btn-show" style="font-size:0.68rem;padding:3px 8px;" onclick="event.stopPropagation()">Hesapla Tümü</button>
+      <span class="toggle-arrow">▼</span>
+    </div>
+  </div>
+  <div id="groups-list" class="collapsible-body">
+    <div class="empty-routes">Henüz rota grubu yok.</div>
+  </div>
+</div>
+
+<div class="sb-section">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="sb-title">Çalışanlar</span>
+      <span class="sb-count" id="emp-count">0</span>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn-show" id="emp-toggle-btn" style="font-size:0.68rem;padding:3px 8px;">Göster</button>
+      <button class="btn-show" id="emp-manage-btn" style="font-size:0.68rem;padding:3px 8px;">Yönet</button>
+    </div>
+  </div>
+</div>
+
+<div class="sb-section">
+  <div class="collapsible-header" id="new-group-toggle">
+    <span class="sb-title">Yeni Grup Ekle</span>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div id="new-group-body" class="collapsible-body" style="display:none">
+    <div class="field">
+      <label>Grup Adı</label>
+      <input type="text" id="group-name-input" placeholder="örn. Bursa Merkez Hattı">
+    </div>
+    <div id="new-group-error" class="error-box" style="display:none"></div>
+    <button class="btn-save" id="new-group-save-btn">Kaydet</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<button id="map-mode-btn" title="Koyu moda geç">🌙</button>
+
+<!-- Link modal -->
+<div class="modal-backdrop" id="link-modal">
+  <div class="modal">
+    <div class="modal-title" id="link-modal-title">Link Ekle</div>
+    <div id="link-error" class="error-box" style="display:none"></div>
+    <div class="field">
+      <label id="link-url-label">Google Maps URL</label>
+      <textarea id="link-url" placeholder="https://www.google.com/maps/dir/..."></textarea>
+    </div>
+    <div class="field">
+      <label>Renk</label>
+      <div class="cp-wrap" id="link-color-palette">
+        <input type="hidden" class="cp-value" value="#3498DB">
+        <div class="cp-swatches">
+          <div class="cp-swatch" data-color="#E74C3C" style="background:#E74C3C"></div>
+          <div class="cp-swatch" data-color="#E67E22" style="background:#E67E22"></div>
+          <div class="cp-swatch" data-color="#F1C40F" style="background:#F1C40F"></div>
+          <div class="cp-swatch" data-color="#2ECC71" style="background:#2ECC71"></div>
+          <div class="cp-swatch" data-color="#1ABC9C" style="background:#1ABC9C"></div>
+          <div class="cp-swatch selected" data-color="#3498DB" style="background:#3498DB"></div>
+          <div class="cp-swatch" data-color="#9B59B6" style="background:#9B59B6"></div>
+          <div class="cp-swatch" data-color="#34495E" style="background:#34495E"></div>
+          <div class="cp-swatch" data-color="#FF61A6" style="background:#FF61A6"></div>
+          <div class="cp-swatch" data-color="#00C9A7" style="background:#00C9A7"></div>
+        </div>
+        <button type="button" class="cp-plus">+</button>
+        <div class="cp-popup" style="display:none">
+          <div class="cp-popup-top">
+            <div class="cp-preview"></div>
+            <div class="cp-hex">#3498DB</div>
+          </div>
+          <div class="cp-slider-row">
+            <span class="cp-lbl r">R</span>
+            <input type="range" class="cp-range" data-ch="r" min="0" max="255" value="52">
+            <input type="number" class="cp-num" data-ch="r" min="0" max="255" value="52">
+          </div>
+          <div class="cp-slider-row">
+            <span class="cp-lbl g">G</span>
+            <input type="range" class="cp-range" data-ch="g" min="0" max="255" value="152">
+            <input type="number" class="cp-num" data-ch="g" min="0" max="255" value="152">
+          </div>
+          <div class="cp-slider-row">
+            <span class="cp-lbl b">B</span>
+            <input type="range" class="cp-range" data-ch="b" min="0" max="255" value="219">
+            <input type="number" class="cp-num" data-ch="b" min="0" max="255" value="219">
+          </div>
+          <button type="button" class="cp-pick-btn">Seç</button>
+        </div>
+      </div>
+    </div>
+    <div id="link-preview-info" class="preview-info" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="link-cancel">İptal</button>
+      <button class="btn-modal-save" id="link-save-btn">Çiz ve Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee modal -->
+<div class="modal-backdrop" id="emp-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title">Çalışan Ataması — {{ workspace.name }}</div>
+    <div class="emp-search-wrap">
+      <span class="emp-search-icon">🔍</span>
+      <input type="text" id="emp-search" placeholder="Personel kodu veya adres ara…">
+    </div>
+    <div class="emp-toolbar">
+      <span class="emp-sel-count" id="emp-sel-count">0 seçili</span>
+      <div class="emp-toolbar-btns">
+        <button class="btn-emp-sel" id="emp-select-all">Tümünü Seç</button>
+        <button class="btn-emp-sel" id="emp-deselect-all">Temizle</button>
+      </div>
+    </div>
+    <div class="emp-list" id="emp-list">
+      <div class="emp-empty">Yükleniyor…</div>
+    </div>
+    <div id="emp-modal-error" class="error-box" style="display:none;margin-top:10px;"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn-modal-cancel" id="emp-cancel">İptal</button>
+      <button class="btn-modal-save" id="emp-save-btn">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nearby employees modal -->
+<div class="modal-backdrop" id="nearby-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="nearby-modal-title">Yakın Çalışanlar</div>
+    <div id="nearby-loading" style="text-align:center;padding:24px 0;color:#888;font-size:0.85rem;">İzokron hesaplanıyor… <span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span></div>
+    <div id="nearby-content" style="display:none">
+      <span class="iso-badge" id="nearby-iso-badge">● 15 dk yürüme izokronu</span>
+      <div class="nearby-stat" id="nearby-stats"></div>
+      <div class="emp-list" id="nearby-list" style="max-height:320px;overflow-y:auto;"></div>
+    </div>
+    <div id="nearby-error" class="error-box" style="display:none;margin-top:10px;"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn-modal-cancel" id="nearby-close">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename modal -->
+<div class="modal-backdrop" id="rename-modal">
+  <div class="modal">
+    <div class="modal-title">Grubu Düzenle</div>
+    <div id="rename-error" class="error-box" style="display:none"></div>
+    <div class="field">
+      <label>Grup Adı</label>
+      <input type="text" id="rename-input" placeholder="Grup adı">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="rename-cancel">İptal</button>
+      <button class="btn-modal-save" id="rename-save">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const WORKSPACE_ID = '{{ workspace.id }}';
+  const GROUPS_DATA  = [];
+  const activeRoutes = {};
+
+  // ── Employee markers state ──
+  let empMarkerGroup = null;
+  let empMarkersVisible = false;
+
+  // ── Isochrone layer ──
+  let isochroneLayer = null;
+
+  let modalGroupId   = null;
+  let modalDirection = null;
+  let modalRouteId   = null;
+  let modalColor     = '#3498DB';
+  let renameGroupId  = null;
+
+  const map = L.map('map').setView([40.1826, 29.0665], 12);
+
+  const TILES = {
+    light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
+    dark:  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
+  };
+  let currentTileMode = 'light';
+  TILES.light.addTo(map);
+
+  document.getElementById('map-mode-btn').addEventListener('click', function() {
+    map.removeLayer(TILES[currentTileMode]);
+    currentTileMode = currentTileMode === 'light' ? 'dark' : 'light';
+    TILES[currentTileMode].addTo(map);
+    this.textContent = currentTileMode === 'light' ? '🌙' : '☀️';
+    this.title = currentTileMode === 'light' ? 'Koyu moda geç' : 'Açık moda geç';
+  });
+
+  function getCookie(name) {
+    const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+    return v ? v[2] : '';
+  }
+
+  function getAllRoutes() {
+    return GROUPS_DATA.flatMap(g => g.routes);
+  }
+
+  // ── Map drawing ──────────────────────────────────────────────────────────
+  function drawRoute(r) {
+    if (activeRoutes[r.id] || !r.geojson) return;
+    const coords = r.geojson.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    const poly = L.polyline(coords, { color: r.color, weight: 4, opacity: 0.9 }).addTo(map);
+    const mg   = L.layerGroup().addTo(map);
+    const wps  = r.waypoints || [];
+
+    // wps[0] = kalkış, wps[last] = varış — URL sırasından doğrudan gelir
+    if (wps[0]) {
+      L.marker([wps[0].lat, wps[0].lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:28px;height:28px;border-radius:50%;background:' + r.color + ';border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.4);">&#9654;</div>',
+          iconSize: [28, 28], iconAnchor: [14, 14],
+        }),
+      }).bindPopup('<b>' + r.name + '</b><br>Kalkış').addTo(mg);
+    }
+    if (wps.length > 1) {
+      const last = wps[wps.length - 1];
+      L.marker([last.lat, last.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:22px;height:32px;position:relative;"><div style="width:22px;height:22px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:' + r.color + ';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div></div>',
+          iconSize: [22, 32], iconAnchor: [11, 32],
+        }),
+      }).bindPopup('<b>' + r.name + '</b><br>Varış').addTo(mg);
+    }
+    map.fitBounds(poly.getBounds(), { padding: [30, 30] });
+
+    const stopGroup = L.layerGroup().addTo(map);
+    (r.stops || []).forEach(function(s) { drawStopMarker(s, r, stopGroup); });
+    poly.on('click', function(e) { openStopPopup(e.latlng, r); });
+
+    activeRoutes[r.id] = { polyline: poly, markerGroup: mg, stopGroup: stopGroup, isochroneGroup: null };
+  }
+
+  function hideRoute(id) {
+    if (!activeRoutes[id]) return;
+    map.removeLayer(activeRoutes[id].polyline);
+    map.removeLayer(activeRoutes[id].markerGroup);
+    if (activeRoutes[id].stopGroup)      map.removeLayer(activeRoutes[id].stopGroup);
+    if (activeRoutes[id].isochroneGroup) map.removeLayer(activeRoutes[id].isochroneGroup);
+    delete activeRoutes[id];
+  }
+
+  // ── Stop markers ─────────────────────────────────────────────────────────
+  function drawStopMarker(stop, route, stopGroup) {
+    const btnId     = 'sdel-'   + stop.id.replace(/-/g, '');
+    const boardId   = 'sboard-' + stop.id.replace(/-/g, '');
+    const assigned  = stop._assignedEmployees;
+    const countHtml = assigned != null
+      ? '<div style="font-size:0.72rem;color:#e67e22;margin-top:3px;font-weight:600;">👥 ' + assigned.length + ' kişi biner</div>'
+      : '';
+    const boardBtn  = assigned != null
+      ? '<button id="' + boardId + '" style="margin-top:8px;width:100%;padding:5px 0;background:#e67e22;border:none;border-radius:4px;color:#fff;font-size:0.75rem;font-weight:600;cursor:pointer;">Binenler</button>'
+      : '';
+    const marker = L.marker([stop.latitude, stop.longitude], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="width:28px;height:28px;border-radius:50%;background:' + route.color + ';border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.4);">' + stop.sort_order + '</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      }),
+      zIndexOffset: 200,
+    }).addTo(stopGroup);
+    marker.bindPopup(
+      '<div style="min-width:160px;">'
+      + '<div style="font-weight:700;font-size:0.82rem;color:#222;">' + stop.name + '</div>'
+      + '<div style="font-size:0.7rem;color:#888;margin-top:2px;">' + route.name + ' · ' + stop.sort_order + '. durak</div>'
+      + countHtml
+      + boardBtn
+      + '<button id="' + btnId + '" style="margin-top:' + (assigned != null ? '4' : '8') + 'px;width:100%;padding:5px 0;background:#e74c3c;border:none;border-radius:4px;color:#fff;font-size:0.75rem;font-weight:600;cursor:pointer;">Durağı Sil</button>'
+      + '</div>'
+    );
+    marker.on('popupopen', function() {
+      const delBtn = document.getElementById(btnId);
+      if (delBtn) delBtn.addEventListener('click', async function() {
+        await deleteStop(stop.id, route.id);
+        map.closePopup();
+      });
+      const bBtn = document.getElementById(boardId);
+      if (bBtn) bBtn.addEventListener('click', function() {
+        map.closePopup();
+        openBoardersPanel(stop, route.color);
+      });
+    });
+    return marker;
+  }
+
+  function openStopPopup(latlng, route) {
+    const uid = 'sp' + Date.now();
+    const content =
+      '<div style="min-width:190px;">'
+      + '<div style="font-size:0.82rem;font-weight:700;color:#222;margin-bottom:8px;">Durak Ekle</div>'
+      + '<input id="' + uid + '-n" type="text" placeholder="Durak adı…" style="width:100%;border:1px solid #ccc;border-radius:4px;padding:5px 8px;font-size:0.8rem;box-sizing:border-box;outline:none;margin-bottom:6px;">'
+      + '<div style="display:flex;gap:6px;">'
+      + '<button id="' + uid + '-c" style="flex:1;padding:5px;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;font-size:0.75rem;cursor:pointer;">İptal</button>'
+      + '<button id="' + uid + '-s" style="flex:2;padding:5px;background:' + route.color + ';border:none;border-radius:4px;color:#fff;font-size:0.75rem;font-weight:700;cursor:pointer;">Kaydet</button>'
+      + '</div>'
+      + '<div id="' + uid + '-e" style="font-size:0.72rem;color:#e74c3c;margin-top:4px;display:none;"></div>'
+      + '</div>';
+
+    L.popup({ closeButton: false, maxWidth: 230 })
+      .setLatLng(latlng)
+      .setContent(content)
+      .openOn(map);
+
+    setTimeout(function() {
+      const inp = document.getElementById(uid + '-n');
+      const saveBtn = document.getElementById(uid + '-s');
+      const cancelBtn = document.getElementById(uid + '-c');
+      const errEl = document.getElementById(uid + '-e');
+      if (inp) inp.focus();
+      if (cancelBtn) cancelBtn.addEventListener('click', function() { map.closePopup(); });
+
+      async function doSave() {
+        const name = inp ? inp.value.trim() : '';
+        if (!name) { if (errEl) { errEl.textContent = 'Durak adı girin.'; errEl.style.display = 'block'; } return; }
+        saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…';
+        try {
+          const resp = await fetch('/api/stops/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ route: route.id, name: name, latitude: latlng.lat, longitude: latlng.lng }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            if (errEl) { errEl.textContent = data.error || 'Kayıt hatası.'; errEl.style.display = 'block'; }
+            saveBtn.disabled = false; saveBtn.textContent = 'Kaydet';
+            return;
+          }
+          for (const g of GROUPS_DATA) {
+            const r2 = g.routes.find(function(r) { return r.id === route.id; });
+            if (r2) { r2.stops = r2.stops || []; r2.stops.push(data); break; }
+          }
+          const ar = activeRoutes[route.id];
+          if (ar && ar.stopGroup) drawStopMarker(data, route, ar.stopGroup);
+          map.closePopup();
+          renderGroups(GROUPS_DATA);
+        } catch (err) {
+          if (errEl) { errEl.textContent = 'Bağlantı hatası.'; errEl.style.display = 'block'; }
+          saveBtn.disabled = false; saveBtn.textContent = 'Kaydet';
+        }
+      }
+
+      if (saveBtn) saveBtn.addEventListener('click', doSave);
+      if (inp) inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doSave();
+        if (e.key === 'Escape') map.closePopup();
+      });
+    }, 50);
+  }
+
+  async function deleteStop(stopId, routeId) {
+    try {
+      const resp = await fetch('/api/stops/' + stopId + '/', {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      });
+      if (!resp.ok && resp.status !== 204) { alert('Silme başarısız: ' + resp.status); return; }
+      for (const g of GROUPS_DATA) {
+        for (const r of g.routes) {
+          if (r.id === routeId) { r.stops = (r.stops || []).filter(function(s) { return s.id !== stopId; }); break; }
+        }
+      }
+      const ar = activeRoutes[routeId];
+      if (ar && ar.stopGroup) {
+        ar.stopGroup.clearLayers();
+        const route = GROUPS_DATA.flatMap(function(g) { return g.routes; }).find(function(r) { return r.id === routeId; });
+        if (route) (route.stops || []).forEach(function(s) { drawStopMarker(s, route, ar.stopGroup); });
+      }
+      renderGroups(GROUPS_DATA);
+    } catch (err) {
+      alert('Bağlantı hatası: ' + err.message);
+    }
+  }
+
+  function startStopEdit(btn) {
+    const item = btn.closest('.stop-item');
+    if (!item) return;
+    const stopId = btn.dataset.stopId;
+    const routeId = btn.dataset.routeId;
+    const nameSpan = item.querySelector('.stop-name');
+    const delBtn = item.querySelector('.sidebar-stop-del-btn');
+
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = nameSpan.textContent;
+    inp.style.cssText = 'flex:1;background:#0f0f1a;border:1px solid #7c8cf8;border-radius:4px;color:#e0e0e0;padding:2px 6px;font-size:0.75rem;outline:none;min-width:0;';
+    nameSpan.replaceWith(inp);
+    btn.style.display = 'none';
+    if (delBtn) delBtn.style.display = 'none';
+    inp.focus(); inp.select();
+
+    const saveBtn = document.createElement('button');
+    saveBtn.innerHTML = '&#10003;';
+    saveBtn.className = 'btn-icon edit';
+    saveBtn.title = 'Kaydet';
+    saveBtn.style.color = '#2ecc71'; saveBtn.style.borderColor = '#2ecc71';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.innerHTML = '&#10005;';
+    cancelBtn.className = 'btn-icon';
+    cancelBtn.title = 'İptal';
+
+    item.appendChild(saveBtn);
+    item.appendChild(cancelBtn);
+
+    function cancel() {
+      inp.replaceWith(nameSpan);
+      btn.style.display = '';
+      if (delBtn) delBtn.style.display = '';
+      saveBtn.remove(); cancelBtn.remove();
+    }
+
+    async function save() {
+      const newName = inp.value.trim();
+      if (!newName) return;
+      saveBtn.disabled = true; cancelBtn.disabled = true;
+      try {
+        const resp = await fetch('/api/stops/' + stopId + '/', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ name: newName }),
+        });
+        if (!resp.ok) { cancel(); return; }
+        for (const g of GROUPS_DATA) {
+          for (const r of g.routes) {
+            if (r.id === routeId) {
+              const s = (r.stops || []).find(function(st) { return st.id === stopId; });
+              if (s) s.name = newName;
+              break;
+            }
+          }
+        }
+        const ar = activeRoutes[routeId];
+        if (ar && ar.stopGroup) {
+          ar.stopGroup.clearLayers();
+          const route = GROUPS_DATA.flatMap(function(g) { return g.routes; }).find(function(r) { return r.id === routeId; });
+          if (route) (route.stops || []).forEach(function(s) { drawStopMarker(s, route, ar.stopGroup); });
+        }
+        renderGroups(GROUPS_DATA);
+      } catch (err) { cancel(); }
+    }
+
+    saveBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', cancel);
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') save();
+      if (e.key === 'Escape') cancel();
+    });
+  }
+
+  // ── Nearby employees ──────────────────────────────────────────────────────
+  async function calculateStopDensity(routeId, routeColor, triggerBtn) {
+    if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = 'Hesaplanıyor…'; }
+    try {
+      const resp = await fetch('/api/routes/' + routeId + '/assign-stops/', {
+        headers: { 'Accept': 'application/json' },
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        alert('Hata: ' + (data.error || resp.status));
+        return;
+      }
+
+      // Cache assigned counts + employee lists on stop objects in GROUPS_DATA
+      let routeObj = null;
+      for (const g of GROUPS_DATA) {
+        for (const r of g.routes) {
+          if (r.id !== routeId) continue;
+          routeObj = r;
+          for (const stopResult of data.stops) {
+            const s = (r.stops || []).find(function(st) { return st.id === stopResult.stop_id; });
+            if (s) {
+              s._assignedCount = stopResult.employee_count;
+              s._assignedEmployees = stopResult.employees;
+              s._isochrone = stopResult.isochrone;
+            }
+          }
+        }
+      }
+      renderGroups(GROUPS_DATA);
+
+      const ar = activeRoutes[routeId];
+      if (ar) {
+        // Draw all isochrones as a single layer group
+        if (ar.isochroneGroup) map.removeLayer(ar.isochroneGroup);
+        ar.isochroneGroup = L.layerGroup().addTo(map);
+        data.stops.forEach(function(stopResult) {
+          if (stopResult.isochrone) {
+            L.geoJSON(stopResult.isochrone, {
+              style: { color: routeColor, weight: 2, fillColor: routeColor, fillOpacity: 0.12 },
+            }).addTo(ar.isochroneGroup);
+          }
+        });
+
+        // Redraw stop markers so popup shows boarding list
+        if (ar.stopGroup && routeObj) {
+          ar.stopGroup.clearLayers();
+          (routeObj.stops || []).forEach(function(s) { drawStopMarker(s, routeObj, ar.stopGroup); });
+        }
+      }
+
+      // Mark employees green (assigned) or red (unreachable) on map
+      const assignedCodes = new Set();
+      data.stops.forEach(function(st) {
+        st.employees.forEach(function(e) { assignedCodes.add(e.personnel_code); });
+      });
+      const unreachableCodes = new Set(data.unreachable.map(function(e) { return e.personnel_code; }));
+      WORKSPACE_EMPLOYEES.forEach(function(e) {
+        if (assignedCodes.has(e.personnel_code))         e._assignment = 'assigned';
+        else if (unreachableCodes.has(e.personnel_code)) e._assignment = 'unreachable';
+      });
+      showEmployeeMarkers();
+
+      showDensityToast(data, routeColor);
+    } catch (err) {
+      alert('Bağlantı hatası: ' + err.message);
+    } finally {
+      if (triggerBtn) { triggerBtn.disabled = false; triggerBtn.textContent = 'Hesapla'; }
+    }
+  }
+
+  function showToast(msg) {
+    const existing = document.getElementById('simple-toast');
+    if (existing) existing.remove();
+    const t = document.createElement('div');
+    t.id = 'simple-toast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:3000;'
+      + 'background:#1a1a2e;border:1px solid #3a3a6a;border-radius:10px;padding:12px 20px;'
+      + 'color:#e0e0e0;font-size:0.82rem;box-shadow:0 8px 28px rgba(0,0,0,0.6);white-space:nowrap;';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function() { if (t.parentNode) t.remove(); }, 8000);
+  }
+
+  function showDensityToast(data, routeColor) {
+    const existing = document.getElementById('density-toast');
+    if (existing) existing.remove();
+
+    const total = data.stops.reduce(function(s, st) { return s + st.employee_count; }, 0);
+    const lines = data.stops.map(function(st) {
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid #2a2a4a;">'
+        + '<span style="color:#ccc;font-size:0.75rem;">' + st.sort_order + '. ' + st.stop_name + '</span>'
+        + '<span style="color:' + routeColor + ';font-weight:700;font-size:0.75rem;">' + st.employee_count + ' kişi</span>'
+        + '</div>';
+    }).join('');
+
+    const toast = document.createElement('div');
+    toast.id = 'density-toast';
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:3000;'
+      + 'background:#1a1a2e;border:1px solid ' + routeColor + ';border-radius:10px;padding:14px 18px;'
+      + 'min-width:260px;max-width:340px;box-shadow:0 8px 28px rgba(0,0,0,0.6);';
+    toast.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+      + '<span style="font-weight:700;color:#e0e0e0;font-size:0.85rem;">Durak Yoğunluğu</span>'
+      + '<button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;color:#666;cursor:pointer;font-size:1rem;padding:0;line-height:1;">✕</button>'
+      + '</div>'
+      + lines
+      + '<div style="margin-top:8px;font-size:0.72rem;color:#888;">'
+      + total + ' çalışan atandı'
+      + (data.unreachable_count ? ' · <span style="color:#e74c3c;">' + data.unreachable_count + ' ulaşılamaz</span>' : '')
+      + '</div>';
+    document.body.appendChild(toast);
+    setTimeout(function() { if (toast.parentNode) toast.remove(); }, 12000);
+  }
+
+  async function fetchAndCacheStopCount(stop) {
+    try {
+      const resp = await fetch('/api/stops/' + stop.id + '/nearby-employees/', { headers: { 'Accept': 'application/json' } });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      stop._nearbyCount = data.employee_count;
+      renderGroups(GROUPS_DATA);
+    } catch (e) { /* ignore */ }
+  }
+
+  function openBoardersPanel(stop, routeColor) {  // noqa — routeColor reserved for future use
+    document.getElementById('nearby-modal-title').textContent = stop.name + ' — Binenler';
+    document.getElementById('nearby-loading').style.display = 'none';
+    document.getElementById('nearby-error').style.display = 'none';
+    document.getElementById('nearby-content').style.display = 'block';
+    document.getElementById('nearby-iso-badge').textContent = '● En yakın durak ataması';
+    const emps = stop._assignedEmployees || [];
+    document.getElementById('nearby-stats').textContent =
+      emps.length + ' çalışan bu durağa biner';
+    const listEl = document.getElementById('nearby-list');
+    if (!emps.length) {
+      listEl.innerHTML = '<div class="emp-empty">Bu durağa binen çalışan yok.</div>';
+    } else {
+      listEl.innerHTML = emps.map(function(e) {
+        return '<div class="nearby-emp-row" data-lat="' + e.lat + '" data-lng="' + e.lng + '">'
+          + '<span class="emp-code">' + e.personnel_code + '</span>'
+          + '<span class="emp-addr">' + e.address + '</span>'
+          + '</div>';
+      }).join('');
+      listEl.querySelectorAll('.nearby-emp-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+          map.setView([parseFloat(row.dataset.lat), parseFloat(row.dataset.lng)], 16);
+        });
+      });
+    }
+    document.getElementById('nearby-modal').classList.add('open');
+  }
+
+  async function openNearbyPanel(stopId, stopName, routeColor) {
+    document.getElementById('nearby-modal-title').textContent = stopName + ' — Yakın Çalışanlar';
+    document.getElementById('nearby-loading').style.display = 'block';
+    document.getElementById('nearby-content').style.display = 'none';
+    document.getElementById('nearby-error').style.display = 'none';
+    document.getElementById('nearby-modal').classList.add('open');
+
+    if (isochroneLayer) { map.removeLayer(isochroneLayer); isochroneLayer = null; }
+
+    try {
+      const resp = await fetch('/api/stops/' + stopId + '/nearby-employees/', { headers: { 'Accept': 'application/json' } });
+      const data = await resp.json();
+      if (!resp.ok) {
+        document.getElementById('nearby-error').textContent = data.error || 'API hatası.';
+        document.getElementById('nearby-error').style.display = 'block';
+        document.getElementById('nearby-loading').style.display = 'none';
+        return;
+      }
+
+      if (data.isochrone) {
+        isochroneLayer = L.geoJSON(data.isochrone, {
+          style: { color: routeColor, weight: 2, fillColor: routeColor, fillOpacity: 0.12 },
+        }).addTo(map);
+      }
+
+      // Cache count in GROUPS_DATA so sidebar updates
+      for (const g of GROUPS_DATA) {
+        for (const r of g.routes) {
+          const s = (r.stops || []).find(function(st) { return st.id === stopId; });
+          if (s) { s._nearbyCount = data.employee_count; break; }
+        }
+      }
+      renderGroups(GROUPS_DATA);
+
+      document.getElementById('nearby-loading').style.display = 'none';
+      document.getElementById('nearby-content').style.display = 'block';
+      document.getElementById('nearby-iso-badge').textContent = '● ' + data.minutes + ' dk yürüme izokronu';
+      document.getElementById('nearby-stats').textContent =
+        data.employee_count + ' çalışan bu durağa ' + data.minutes + ' dakika yürüme mesafesinde';
+
+      const listEl = document.getElementById('nearby-list');
+      if (!data.employees.length) {
+        listEl.innerHTML = '<div class="emp-empty">Bu durağa yakın çalışan bulunamadı.</div>';
+      } else {
+        listEl.innerHTML = data.employees.map(function(e) {
+          return '<div class="nearby-emp-row" data-lat="' + e.lat + '" data-lng="' + e.lng + '">'
+            + '<span class="emp-code">' + e.personnel_code + '</span>'
+            + '<span class="emp-addr">' + e.address + '</span>'
+            + '</div>';
+        }).join('');
+        listEl.querySelectorAll('.nearby-emp-row').forEach(function(row) {
+          row.addEventListener('click', function() {
+            const lat = parseFloat(row.dataset.lat);
+            const lng = parseFloat(row.dataset.lng);
+            map.setView([lat, lng], 16);
+          });
+        });
+      }
+    } catch (err) {
+      document.getElementById('nearby-error').textContent = 'Bağlantı hatası: ' + err.message;
+      document.getElementById('nearby-error').style.display = 'block';
+      document.getElementById('nearby-loading').style.display = 'none';
+    }
+  }
+
+  document.getElementById('nearby-close').addEventListener('click', function() {
+    document.getElementById('nearby-modal').classList.remove('open');
+  });
+  document.getElementById('nearby-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('nearby-modal'))
+      document.getElementById('nearby-modal').classList.remove('open');
+  });
+
+  function toggleRoute(routeId) {
+    const route = getAllRoutes().find(r => r.id === routeId);
+    if (!route) return;
+    activeRoutes[routeId] ? hideRoute(routeId) : drawRoute(route);
+    renderGroups(GROUPS_DATA);
+  }
+
+  // ── Toggle all ───────────────────────────────────────────────────────────
+  function syncToggleAllBtn() {
+    const btn = document.getElementById('toggle-all-btn');
+    if (!btn) return;
+    const all = getAllRoutes().filter(r => r.geojson);
+    if (!all.length) { btn.textContent = 'Tümünü Göster'; btn.classList.remove('active'); return; }
+    const allVisible = all.every(r => activeRoutes[r.id]);
+    btn.textContent = allVisible ? 'Tümünü Gizle' : 'Tümünü Göster';
+    btn.classList.toggle('active', allVisible);
+  }
+
+  document.getElementById('toggle-all-btn').addEventListener('click', function () {
+    const all = getAllRoutes().filter(r => r.geojson);
+    const allVisible = all.every(r => activeRoutes[r.id]);
+    all.forEach(r => allVisible ? hideRoute(r.id) : drawRoute(r));
+    renderGroups(GROUPS_DATA);
+  });
+
+  async function calculateAllRoutes() {
+    const btn = document.getElementById('calculate-all-btn');
+    btn.textContent = '…'; btn.disabled = true;
+    let data;
+    try {
+      const res = await fetch('/api/route-groups/assign-all/', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    } catch (err) {
+      showToast('Hata: ' + err.message);
+      btn.textContent = 'Hesapla Tümü'; btn.disabled = false;
+      return;
+    }
+
+    // Step 1: Update GROUPS_DATA stop caches (never throws)
+    for (const routeData of data.routes) {
+      const routeObj = GROUPS_DATA.flatMap(g => g.routes).find(r => r.id === routeData.route_id);
+      if (!routeObj) continue;
+      for (const stopResult of routeData.stops) {
+        const stop = (routeObj.stops || []).find(s => s.id === stopResult.stop_id);
+        if (stop) {
+          stop._assignedCount = stopResult.employee_count;
+          stop._assignedEmployees = stopResult.employees;
+          stop._isochrone = stopResult.isochrone;
+        }
+      }
+    }
+    renderGroups(GROUPS_DATA);
+
+    // Step 2: Color employees — runs unconditionally
+    const assignedCodes = new Set();
+    const unreachableCodes = new Set((data.unreachable || []).map(e => e.personnel_code));
+    data.routes.forEach(r => r.stops.forEach(s => s.employees.forEach(e => assignedCodes.add(e.personnel_code))));
+    WORKSPACE_EMPLOYEES.forEach(function(e) { e._assignment = null; });
+    WORKSPACE_EMPLOYEES.forEach(function(e) {
+      if (assignedCodes.has(e.personnel_code))         e._assignment = 'assigned';
+      else if (unreachableCodes.has(e.personnel_code)) e._assignment = 'unreachable';
+    });
+    showEmployeeMarkers();
+
+    // Step 3: Draw routes and isochrones (errors per-route are swallowed)
+    for (const routeData of data.routes) {
+      const routeObj = GROUPS_DATA.flatMap(g => g.routes).find(r => r.id === routeData.route_id);
+      if (!routeObj || !routeObj.geojson) continue;
+      try {
+        if (!activeRoutes[routeObj.id]) drawRoute(routeObj);
+        const ar = activeRoutes[routeObj.id];
+        if (!ar) continue;
+        if (ar.isochroneGroup) map.removeLayer(ar.isochroneGroup);
+        ar.isochroneGroup = L.layerGroup().addTo(map);
+        for (const stopResult of routeData.stops) {
+          if (stopResult.isochrone) {
+            L.geoJSON(stopResult.isochrone, {
+              style: { color: routeObj.color, weight: 2, fillColor: routeObj.color, fillOpacity: 0.12 },
+            }).addTo(ar.isochroneGroup);
+          }
+        }
+        if (ar.stopGroup) {
+          ar.stopGroup.clearLayers();
+          (routeObj.stops || []).forEach(s => drawStopMarker(s, routeObj, ar.stopGroup));
+        }
+      } catch (e) {
+        console.warn('Route draw error', routeObj.id, e);
+      }
+    }
+
+    const d = data._debug || {};
+    showToast('✓ ' + data.total_assigned + ' atandı — ' + data.total_unreachable + ' ulaşılamaz | durak:' + d.stop_count + ' direkt:' + d.direct + ' belirsiz:' + d.ambiguous + ' sıfır:' + d.shapely_zero);
+    btn.textContent = 'Hesapla Tümü'; btn.disabled = false;
+  }
+
+  document.getElementById('calculate-all-btn').addEventListener('click', calculateAllRoutes);
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  const groupsListEl = document.getElementById('groups-list');
+  const groupCountEl = document.getElementById('group-count');
+
+  function renderDirectionRow(group, direction) {
+    const label = direction === 'inbound' ? '&#8594; İş Yerine Geliş' : '&#8592; İş Yerinden Çıkış';
+    const route = group.routes.find(function(r) { return r.direction === direction; });
+    const isActive = route && !!activeRoutes[route.id];
+    const dotStyle = route
+      ? 'background:' + route.color
+      : 'background:#1a1a2e;border:1px dashed #3a3a5a;box-sizing:border-box';
+    const labelColor = route ? '' : 'color:#555;';
+    const stopCount = route && route.stops ? route.stops.length : 0;
+    const infoHtml = route
+      ? '<div class="dir-sub">'
+        + (route.distance_km != null ? route.distance_km + ' km &middot; ' + route.duration_min + ' dk &middot; ' : '')
+        + stopCount + ' durak</div>'
+      : '';
+    var actionsHtml;
+    if (route) {
+      actionsHtml = '<button class="btn-show' + (isActive ? ' active' : '') + '" data-route-id="' + route.id + '">' + (isActive ? 'Gizle' : 'Göster') + '</button>'
+        + '<button class="btn-show density-btn" data-route-id="' + route.id + '" data-route-color="' + route.color + '" style="font-size:0.68rem;padding:3px 8px;" title="Durak yoğunluğunu hesapla">Hesapla</button>'
+        + '<button class="btn-icon edit link-edit-btn" data-group-id="' + group.id + '" data-direction="' + direction + '" title="Düzenle">&#9998;</button>'
+        + '<button class="btn-icon del link-del-btn" data-route-id="' + route.id + '" title="Rotayı Sil">&#10005;</button>';
+    } else {
+      actionsHtml = '<button class="btn-link-add link-add-btn" data-group-id="' + group.id + '" data-direction="' + direction + '">Link Ekle</button>';
+    }
+    var stopListHtml = '';
+    if (route && route.stops && route.stops.length > 0) {
+      stopListHtml = '<div class="stop-list">'
+        + route.stops.map(function(s) {
+          const countBadge = s._assignedCount != null
+            ? '<span style="font-size:0.65rem;color:#e67e22;background:#2a1800;border:1px solid #e67e22;border-radius:10px;padding:1px 6px;flex-shrink:0;" title="Atanan çalışan">' + s._assignedCount + ' atandı</span>'
+            : s._nearbyCount != null
+              ? '<span style="font-size:0.65rem;color:#1abc9c;background:#0a2a25;border:1px solid #1abc9c;border-radius:10px;padding:1px 6px;flex-shrink:0;" title="İzokron içindeki çalışan">' + s._nearbyCount + ' kişi</span>'
+              : '<span style="font-size:0.65rem;color:#444;flex-shrink:0;">…</span>';
+          return '<div class="stop-item">'
+            + '<div class="stop-num" style="background:' + route.color + ';">' + s.sort_order + '</div>'
+            + '<span class="stop-name" title="' + s.name + '">' + s.name + '</span>'
+            + countBadge
+            + '<button class="btn-icon edit sidebar-stop-edit-btn" data-stop-id="' + s.id + '" data-route-id="' + route.id + '" title="Düzenle">&#9998;</button>'
+            + '<button class="btn-icon del sidebar-stop-del-btn" data-stop-id="' + s.id + '" data-route-id="' + route.id + '" title="Sil">&#10005;</button>'
+            + '</div>';
+        }).join('')
+        + '</div>';
+    }
+
+    return '<div class="group-route-row">'
+      + '<div class="dir-info"><div class="route-dot" style="' + dotStyle + '"></div>'
+      + '<div><div class="dir-label" style="' + labelColor + '">' + label + '</div>' + infoHtml + '</div></div>'
+      + '<div class="dir-actions">' + actionsHtml + '</div>'
+      + '</div>'
+      + stopListHtml;
+  }
+
+  function renderGroups(groups) {
+    groupCountEl.textContent = groups.length;
+    syncToggleAllBtn();
+    if (!groups.length) {
+      groupsListEl.innerHTML = '<div class="empty-routes">Henüz rota grubu yok.</div>';
+      return;
+    }
+    groupsListEl.innerHTML = groups.map(function(g) {
+      return '<div class="group-card" data-group-id="' + g.id + '">'
+        + '<div class="group-header">'
+        + '<span class="group-name" title="' + g.name + '">' + g.name + '</span>'
+        + '<div class="group-header-actions">'
+        + '<button class="btn-icon edit rename-btn" data-group-id="' + g.id + '" title="Yeniden Adlandır">&#9998;</button>'
+        + '<button class="btn-icon del delete-group-btn" data-group-id="' + g.id + '" title="Grubu Sil">&#10005;</button>'
+        + '</div></div>'
+        + '<div class="group-routes">'
+        + renderDirectionRow(g, 'inbound')
+        + renderDirectionRow(g, 'outbound')
+        + '</div></div>';
+    }).join('');
+
+    groupsListEl.querySelectorAll('.btn-show[data-route-id]:not(.density-btn)').forEach(function(btn) {
+      btn.addEventListener('click', function() { toggleRoute(btn.dataset.routeId); });
+    });
+    groupsListEl.querySelectorAll('.link-add-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { openLinkModal(btn.dataset.groupId, btn.dataset.direction); });
+    });
+    groupsListEl.querySelectorAll('.link-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { openLinkModal(btn.dataset.groupId, btn.dataset.direction, true); });
+    });
+    groupsListEl.querySelectorAll('.link-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { deleteRouteDir(btn.dataset.routeId); });
+    });
+    groupsListEl.querySelectorAll('.rename-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { openRenameModal(btn.dataset.groupId); });
+    });
+    groupsListEl.querySelectorAll('.delete-group-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { deleteGroup(btn.dataset.groupId); });
+    });
+    groupsListEl.querySelectorAll('.density-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { calculateStopDensity(btn.dataset.routeId, btn.dataset.routeColor, btn); });
+    });
+    groupsListEl.querySelectorAll('.sidebar-stop-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { startStopEdit(btn); });
+    });
+    groupsListEl.querySelectorAll('.sidebar-stop-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { deleteStop(btn.dataset.stopId, btn.dataset.routeId); });
+    });
+  }
+
+  // ── Load from API ────────────────────────────────────────────────────────
+  async function loadGroups() {
+    try {
+      const resp = await fetch('/api/route-groups/?workspace=' + WORKSPACE_ID);
+      const data = await resp.json();
+      if (!resp.ok) return;
+      GROUPS_DATA.length = 0;
+      data.forEach(function(g) { GROUPS_DATA.push(g); });
+      renderGroups(GROUPS_DATA);
+    } catch (err) {
+      console.error('[loadGroups] HATA:', err);
+    }
+  }
+
+  // ── Delete helpers ───────────────────────────────────────────────────────
+  async function deleteResource(url, confirmMsg, onSuccess) {
+    if (!confirm(confirmMsg)) return;
+    try {
+      const resp = await fetch(url, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } });
+      if (!resp.ok && resp.status !== 204) { alert('Silme başarısız: ' + resp.status); return; }
+      onSuccess();
+      renderGroups(GROUPS_DATA);
+    } catch (err) { alert('Bağlantı hatası: ' + err.message); }
+  }
+
+  function deleteGroup(groupId) {
+    const group = GROUPS_DATA.find(function(g) { return g.id === groupId; });
+    if (!group) return;
+    deleteResource(
+      '/api/route-groups/' + groupId + '/',
+      '"' + group.name + '" grubunu ve tüm rotalarını silmek istiyor musunuz?',
+      function() {
+        group.routes.forEach(function(r) { hideRoute(r.id); });
+        const idx = GROUPS_DATA.findIndex(function(g) { return g.id === groupId; });
+        if (idx !== -1) GROUPS_DATA.splice(idx, 1);
+      }
+    );
+  }
+
+  function deleteRouteDir(routeId) {
+    deleteResource(
+      '/api/routes/' + routeId + '/',
+      'Bu yönün rotasını kaldırmak istiyor musunuz?',
+      function() {
+        hideRoute(routeId);
+        for (const group of GROUPS_DATA) {
+          const idx = group.routes.findIndex(function(r) { return r.id === routeId; });
+          if (idx !== -1) { group.routes.splice(idx, 1); break; }
+        }
+      }
+    );
+  }
+
+  // ── Collapsibles ─────────────────────────────────────────────────────────
+  function makeCollapsible(toggleId, bodyId) {
+    const toggle = document.getElementById(toggleId);
+    const body   = document.getElementById(bodyId);
+    toggle.addEventListener('click', function() {
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      toggle.classList.toggle('open', !open);
+    });
+  }
+  makeCollapsible('groups-toggle', 'groups-list');
+  makeCollapsible('new-group-toggle', 'new-group-body');
+
+  // ── New group save ───────────────────────────────────────────────────────
+  document.getElementById('new-group-save-btn').addEventListener('click', async function() {
+    const name    = document.getElementById('group-name-input').value.trim();
+    const errEl   = document.getElementById('new-group-error');
+    const saveBtn = document.getElementById('new-group-save-btn');
+    if (!name) { errEl.textContent = 'Grup adı girin.'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+    saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…';
+    try {
+      const resp = await fetch('/api/route-groups/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ name: name, workspace: WORKSPACE_ID }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { errEl.textContent = data.error || JSON.stringify(data); errEl.style.display = 'block'; return; }
+      data.routes = data.routes || [];
+      GROUPS_DATA.push(data);
+      renderGroups(GROUPS_DATA);
+      document.getElementById('group-name-input').value = '';
+      document.getElementById('new-group-body').style.display = 'none';
+      document.getElementById('new-group-toggle').classList.remove('open');
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Kaydet';
+    }
+  });
+
+  // ── Color picker factory ─────────────────────────────────────────────────
+  function initColorPicker(wrapEl, onChange) {
+    const swatchesEl  = wrapEl.querySelector('.cp-swatches');
+    const plusBtn     = wrapEl.querySelector('.cp-plus');
+    const popup       = wrapEl.querySelector('.cp-popup');
+    const previewEl   = popup.querySelector('.cp-preview');
+    const hexEl       = popup.querySelector('.cp-hex');
+    const pickBtn     = popup.querySelector('.cp-pick-btn');
+    const hiddenInput = wrapEl.querySelector('.cp-value');
+    let rgb = { r: 52, g: 152, b: 219 };
+
+    function hexFromRgb() {
+      return '#' + [rgb.r, rgb.g, rgb.b].map(function(v) { return v.toString(16).padStart(2, '0'); }).join('');
+    }
+    function syncPopup() {
+      const hex = hexFromRgb();
+      previewEl.style.background = hex;
+      hexEl.textContent = hex.toUpperCase();
+      popup.querySelectorAll('.cp-range').forEach(function(el) { el.value = rgb[el.dataset.ch]; });
+      popup.querySelectorAll('.cp-num').forEach(function(el) { el.value = rgb[el.dataset.ch]; });
+    }
+
+    swatchesEl.querySelectorAll('.cp-swatch').forEach(function(sw) {
+      sw.addEventListener('click', function() {
+        swatchesEl.querySelectorAll('.cp-swatch').forEach(function(s) { s.classList.remove('selected'); });
+        sw.classList.add('selected');
+        plusBtn.style.background = 'transparent';
+        plusBtn.style.borderStyle = 'dashed';
+        hiddenInput.value = sw.dataset.color;
+        onChange(sw.dataset.color);
+      });
+    });
+
+    plusBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+    });
+
+    popup.querySelectorAll('.cp-range, .cp-num').forEach(function(el) {
+      el.addEventListener('input', function() {
+        rgb[el.dataset.ch] = Math.max(0, Math.min(255, parseInt(el.value) || 0));
+        syncPopup();
+      });
+    });
+
+    hexEl.addEventListener('click', function() {
+      navigator.clipboard && navigator.clipboard.writeText(hexEl.textContent).catch(function() {});
+    });
+
+    pickBtn.addEventListener('click', function() {
+      const hex = hexFromRgb();
+      swatchesEl.querySelectorAll('.cp-swatch').forEach(function(s) { s.classList.remove('selected'); });
+      plusBtn.style.background = hex;
+      plusBtn.style.borderStyle = 'solid';
+      popup.style.display = 'none';
+      hiddenInput.value = hex;
+      onChange(hex);
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!wrapEl.contains(e.target)) popup.style.display = 'none';
+    });
+
+    syncPopup();
+
+    return {
+      getValue: function() { return hiddenInput.value; },
+      setColor: function(hex) {
+        let found = false;
+        swatchesEl.querySelectorAll('.cp-swatch').forEach(function(sw) {
+          const match = sw.dataset.color.toUpperCase() === hex.toUpperCase();
+          sw.classList.toggle('selected', match);
+          if (match) found = true;
+        });
+        const r = parseInt(hex.slice(1, 3), 16) || 0;
+        const g = parseInt(hex.slice(3, 5), 16) || 0;
+        const b = parseInt(hex.slice(5, 7), 16) || 0;
+        rgb = { r: r, g: g, b: b };
+        syncPopup();
+        plusBtn.style.background = found ? 'transparent' : hex;
+        plusBtn.style.borderStyle = found ? 'dashed' : 'solid';
+        hiddenInput.value = hex;
+      },
+    };
+  }
+
+  const linkPicker = initColorPicker(
+    document.getElementById('link-color-palette'),
+    function(color) { modalColor = color; }
+  );
+  modalColor = linkPicker.getValue();
+
+  // ── Link modal ───────────────────────────────────────────────────────────
+  function openLinkModal(groupId, direction, isEdit) {
+    modalGroupId = groupId; modalDirection = direction;
+    const dirLabel = direction === 'inbound' ? 'İş Yerine Geliş' : 'İş Yerinden Çıkış';
+    let color = '#3498DB';
+    if (isEdit) {
+      const group = GROUPS_DATA.find(function(g) { return g.id === groupId; });
+      const route = group && group.routes.find(function(r) { return r.direction === direction; });
+      modalRouteId = route ? route.id : null;
+      color = route ? route.color : '#3498DB';
+      document.getElementById('link-modal-title').textContent = 'Rotayı Düzenle — ' + dirLabel;
+      document.getElementById('link-url-label').textContent = 'Google Maps URL (boş bırakılırsa sadece renk güncellenir)';
+      document.getElementById('link-url').placeholder = 'Yeni URL girin ya da boş bırakın';
+    } else {
+      modalRouteId = null;
+      document.getElementById('link-modal-title').textContent = 'Link Ekle — ' + dirLabel;
+      document.getElementById('link-url-label').textContent = 'Google Maps URL';
+      document.getElementById('link-url').placeholder = 'https://www.google.com/maps/dir/...';
+    }
+    document.getElementById('link-url').value = '';
+    document.getElementById('link-error').style.display = 'none';
+    document.getElementById('link-preview-info').style.display = 'none';
+    linkPicker.setColor(color);
+    document.getElementById('link-modal').classList.add('open');
+    document.getElementById('link-url').focus();
+  }
+
+  document.getElementById('link-cancel').addEventListener('click', function() {
+    document.getElementById('link-modal').classList.remove('open');
+  });
+  document.getElementById('link-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('link-modal'))
+      document.getElementById('link-modal').classList.remove('open');
+  });
+
+  document.getElementById('link-save-btn').addEventListener('click', async function() {
+    const urlVal    = document.getElementById('link-url').value.trim();
+    const saveBtn   = document.getElementById('link-save-btn');
+    const errEl     = document.getElementById('link-error');
+    const previewEl = document.getElementById('link-preview-info');
+    errEl.style.display = 'none';
+
+    // Edit with no URL: only update color
+    if (modalRouteId && !urlVal) {
+      saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…';
+      try {
+        const resp = await fetch('/api/routes/' + modalRouteId + '/', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ color: modalColor }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json();
+          errEl.textContent = data.error || JSON.stringify(data); errEl.style.display = 'block'; return;
+        }
+        const group = GROUPS_DATA.find(function(g) { return g.id === modalGroupId; });
+        const route = group && group.routes.find(function(r) { return r.id === modalRouteId; });
+        if (route) {
+          route.color = modalColor;
+          if (activeRoutes[modalRouteId]) {
+            hideRoute(modalRouteId);
+            drawRoute(route);
+          }
+        }
+        renderGroups(GROUPS_DATA);
+        document.getElementById('link-modal').classList.remove('open');
+      } catch (err) {
+        errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+      } finally {
+        saveBtn.disabled = false; saveBtn.textContent = 'Çiz ve Kaydet';
+      }
+      return;
+    }
+
+    if (!urlVal) { errEl.textContent = 'Lütfen bir Google Maps URL girin.'; errEl.style.display = 'block'; return; }
+
+    saveBtn.disabled = true; saveBtn.textContent = 'İşleniyor…';
+    previewEl.style.display = 'block'; previewEl.textContent = "ORS'dan rota alınıyor…";
+
+    try {
+      const parseResp = await fetch('/api/routes/parse-google-maps/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ url: urlVal }),
+      });
+      const parseData = await parseResp.json();
+      if (!parseResp.ok) {
+        errEl.textContent = parseData.error || 'URL parse hatası.'; errEl.style.display = 'block';
+        previewEl.style.display = 'none'; return;
+      }
+
+      const props = parseData.geojson.features[0].properties.summary;
+      const km    = props ? parseFloat((props.distance / 1000).toFixed(1)) : null;
+      const min   = props ? Math.round(props.duration / 60) : null;
+      previewEl.textContent = (km || '?') + ' km · ' + (min || '?') + ' dk · ' + parseData.waypoints.length + ' durak';
+
+      const group     = GROUPS_DATA.find(function(g) { return g.id === modalGroupId; });
+      const routeName = group ? group.name : 'Rota';
+      let routeData;
+
+      if (modalRouteId) {
+        hideRoute(modalRouteId);
+        const resp = await fetch('/api/routes/' + modalRouteId + '/', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            name: routeName, color: modalColor,
+            waypoints: parseData.waypoints, geojson: parseData.geojson,
+            distance_km: km, duration_min: min,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { errEl.textContent = data.error || JSON.stringify(data); errEl.style.display = 'block'; return; }
+        routeData = data;
+      } else {
+        const resp = await fetch('/api/routes/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            route_group_id: modalGroupId, direction: modalDirection,
+            name: routeName, color: modalColor,
+            waypoints: parseData.waypoints, geojson: parseData.geojson,
+            distance_km: km, duration_min: min,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { errEl.textContent = data.error || JSON.stringify(data); errEl.style.display = 'block'; return; }
+        routeData = data;
+      }
+
+      await loadGroups();
+      const updatedGroup = GROUPS_DATA.find(function(g) { return g.id === modalGroupId; });
+      const savedRoute   = updatedGroup && updatedGroup.routes.find(function(r) { return r.id === routeData.id; });
+      if (savedRoute) drawRoute(savedRoute);
+
+      document.getElementById('link-modal').classList.remove('open');
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+      previewEl.style.display = 'none';
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Çiz ve Kaydet';
+    }
+  });
+
+  // ── Rename modal ─────────────────────────────────────────────────────────
+  function openRenameModal(groupId) {
+    renameGroupId = groupId;
+    const group = GROUPS_DATA.find(function(g) { return g.id === groupId; });
+    document.getElementById('rename-input').value = group ? group.name : '';
+    document.getElementById('rename-error').style.display = 'none';
+    document.getElementById('rename-modal').classList.add('open');
+    document.getElementById('rename-input').focus();
+  }
+
+  document.getElementById('rename-cancel').addEventListener('click', function() {
+    document.getElementById('rename-modal').classList.remove('open');
+  });
+  document.getElementById('rename-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('rename-modal'))
+      document.getElementById('rename-modal').classList.remove('open');
+  });
+
+  document.getElementById('rename-save').addEventListener('click', async function() {
+    const name    = document.getElementById('rename-input').value.trim();
+    const errEl   = document.getElementById('rename-error');
+    const saveBtn = document.getElementById('rename-save');
+    if (!name) { errEl.textContent = 'Grup adı boş olamaz.'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+    saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…';
+    try {
+      const resp = await fetch('/api/route-groups/' + renameGroupId + '/', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ name: name }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { errEl.textContent = data.error || JSON.stringify(data); errEl.style.display = 'block'; return; }
+      const group = GROUPS_DATA.find(function(g) { return g.id === renameGroupId; });
+      if (group) group.name = name;
+      renderGroups(GROUPS_DATA);
+      document.getElementById('rename-modal').classList.remove('open');
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Kaydet';
+    }
+  });
+
+  // ── Employees ─────────────────────────────────────────────────────────────
+  let ALL_EMPLOYEES = [];
+  let WORKSPACE_EMP_IDS = new Set();
+  let WORKSPACE_EMPLOYEES = [];
+
+  async function loadWorkspaceEmployees() {
+    try {
+      const resp = await fetch('/api/employees/?workspace=' + WORKSPACE_ID);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      WORKSPACE_EMPLOYEES = data;
+      WORKSPACE_EMP_IDS = new Set(data.map(function(e) { return e.id; }));
+      document.getElementById('emp-count').textContent = WORKSPACE_EMP_IDS.size;
+    } catch (err) { console.error('[loadWorkspaceEmployees]', err); }
+  }
+
+  // ── Employee markers on map ──────────────────────────────────────────────
+  function showEmployeeMarkers() {
+    if (empMarkerGroup) { map.removeLayer(empMarkerGroup); }
+    empMarkerGroup = L.layerGroup().addTo(map);
+
+    const empsWithCoords = WORKSPACE_EMPLOYEES.filter(function(e) {
+      return e.lat != null && e.lng != null;
+    });
+
+    empsWithCoords.forEach(function(e) {
+      const bg = e._assignment === 'assigned'    ? 'linear-gradient(135deg,#2ecc71,#27ae60)'
+               : e._assignment === 'unreachable' ? 'linear-gradient(135deg,#e74c3c,#c0392b)'
+               : 'linear-gradient(135deg,#7c8cf8,#5a6cf5)';
+      L.marker([e.lat, e.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="emp-marker" style="background:' + bg + '">👤</div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        }),
+      })
+        .bindPopup(
+          '<div class="emp-popup-code">' + e.personnel_code + '</div>'
+          + '<div class="emp-popup-addr">' + e.address + '</div>'
+        )
+        .addTo(empMarkerGroup);
+    });
+
+    empMarkersVisible = true;
+    syncEmpToggleBtn();
+
+    // fit bounds if there are markers and no routes visible
+    if (empsWithCoords.length && !Object.keys(activeRoutes).length) {
+      const bounds = L.latLngBounds(empsWithCoords.map(function(e) { return [e.lat, e.lng]; }));
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
+  }
+
+  function hideEmployeeMarkers() {
+    if (empMarkerGroup) { map.removeLayer(empMarkerGroup); empMarkerGroup = null; }
+    empMarkersVisible = false;
+    syncEmpToggleBtn();
+  }
+
+  function syncEmpToggleBtn() {
+    const btn = document.getElementById('emp-toggle-btn');
+    btn.textContent = empMarkersVisible ? 'Gizle' : 'Göster';
+    btn.classList.toggle('active', empMarkersVisible);
+  }
+
+  document.getElementById('emp-toggle-btn').addEventListener('click', async function() {
+    if (empMarkersVisible) {
+      hideEmployeeMarkers();
+    } else {
+      if (!WORKSPACE_EMPLOYEES.length) {
+        await loadWorkspaceEmployees();
+      }
+      showEmployeeMarkers();
+    }
+  });
+
+  function renderEmpList(query) {
+    const q = query.toLowerCase();
+    const filtered = ALL_EMPLOYEES.filter(function(e) {
+      return !q
+        || e.personnel_code.toLowerCase().includes(q)
+        || e.address.toLowerCase().includes(q);
+    });
+    const listEl = document.getElementById('emp-list');
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="emp-empty">Sonuç bulunamadı.</div>';
+      updateEmpSelCount();
+      return;
+    }
+    listEl.innerHTML = filtered.map(function(e) {
+      const checked = WORKSPACE_EMP_IDS.has(e.id) ? ' checked' : '';
+      return '<label class="emp-row">'
+        + '<input type="checkbox" class="emp-cb" value="' + e.id + '"' + checked + '>'
+        + '<span class="emp-code">' + e.personnel_code + '</span>'
+        + '<span class="emp-addr">' + e.address + '</span>'
+        + '</label>';
+    }).join('');
+    listEl.querySelectorAll('.emp-cb').forEach(function(cb) {
+      cb.addEventListener('change', updateEmpSelCount);
+    });
+    updateEmpSelCount();
+  }
+
+  function updateEmpSelCount() {
+    const count = document.querySelectorAll('#emp-list .emp-cb:checked').length;
+    document.getElementById('emp-sel-count').textContent = count + ' seçili';
+  }
+
+  async function openEmpModal() {
+    document.getElementById('emp-modal-error').style.display = 'none';
+    document.getElementById('emp-list').innerHTML = '<div class="emp-empty">Yükleniyor…</div>';
+    document.getElementById('emp-search').value = '';
+    document.getElementById('emp-modal').classList.add('open');
+
+    if (!ALL_EMPLOYEES.length) {
+      try {
+        const resp = await fetch('/api/employees/');
+        if (resp.ok) ALL_EMPLOYEES = await resp.json();
+      } catch (err) {
+        document.getElementById('emp-list').innerHTML = '<div class="emp-empty">Yükleme hatası.</div>';
+        return;
+      }
+    }
+    renderEmpList('');
+    document.getElementById('emp-search').focus();
+  }
+
+  document.getElementById('emp-manage-btn').addEventListener('click', openEmpModal);
+
+  document.getElementById('emp-search').addEventListener('input', function() {
+    renderEmpList(this.value);
+  });
+
+  document.getElementById('emp-select-all').addEventListener('click', function() {
+    document.querySelectorAll('#emp-list .emp-cb').forEach(function(cb) { cb.checked = true; });
+    updateEmpSelCount();
+  });
+
+  document.getElementById('emp-deselect-all').addEventListener('click', function() {
+    document.querySelectorAll('#emp-list .emp-cb').forEach(function(cb) { cb.checked = false; });
+    updateEmpSelCount();
+  });
+
+  document.getElementById('emp-cancel').addEventListener('click', function() {
+    document.getElementById('emp-modal').classList.remove('open');
+  });
+  document.getElementById('emp-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('emp-modal'))
+      document.getElementById('emp-modal').classList.remove('open');
+  });
+
+  document.getElementById('emp-save-btn').addEventListener('click', async function() {
+    const saveBtn = this;
+    const errEl   = document.getElementById('emp-modal-error');
+    const ids = Array.from(document.querySelectorAll('#emp-list .emp-cb:checked'))
+      .map(function(cb) { return parseInt(cb.value); });
+
+    saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…';
+    errEl.style.display = 'none';
+    try {
+      const resp = await fetch('/api/employees/assign/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ workspace: WORKSPACE_ID, employee_ids: ids }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        errEl.textContent = data.error || 'Kayıt hatası.'; errEl.style.display = 'block'; return;
+      }
+      WORKSPACE_EMP_IDS = new Set(ids);
+      document.getElementById('emp-count').textContent = ids.length;
+      document.getElementById('emp-modal').classList.remove('open');
+
+      // Refresh employee data and markers on map
+      await loadWorkspaceEmployees();
+      if (empMarkersVisible) {
+        showEmployeeMarkers();
+      }
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Kaydet';
+    }
+  });
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  renderGroups(GROUPS_DATA);
+  loadGroups();
+  loadWorkspaceEmployees();
+</script>
+{% endblock %}
