@@ -87,9 +87,9 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-ORS_API_KEY = env('ORS_API_KEY')
-YANDEX_API_KEY = env('Yandex_Api_Key')
-MAPBOX_API_KEY = env('MAPBOX_API_KEY')
+ORS_API_KEY = env('ORS_API_KEY', default=None)
+YANDEX_API_KEY = env('Yandex_Api_Key', default=None)
+MAPBOX_API_KEY = env('MAPBOX_API_KEY', default=None)
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
