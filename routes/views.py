@@ -37,6 +37,8 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
     serializer_class = RouteGroupSerializer
 
     def get_queryset(self):
+        if self.action in ('retrieve', 'update', 'partial_update', 'destroy'):
+            return RouteGroup.objects.all()
         workspace_id = self.request.query_params.get('workspace')
         if not workspace_id or not _valid_uuid(workspace_id):
             return RouteGroup.objects.none()
@@ -185,6 +187,8 @@ class RouteViewSet(viewsets.ModelViewSet):
     serializer_class = RouteSerializer
 
     def get_queryset(self):
+        if self.action in ('retrieve', 'update', 'partial_update', 'destroy', 'assign_stops'):
+            return Route.objects.all()
         workspace_id = self.request.query_params.get('workspace')
         if workspace_id and _valid_uuid(workspace_id):
             return Route.objects.filter(route_group__workspace_id=workspace_id)
