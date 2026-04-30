@@ -9,6 +9,6 @@ urlpatterns = [
     path('api/', include('routes.urls')),
     path('api/', include('workspaces.urls')),
     path('api/', include('employees.urls')),
-    path('map/', map_view),
+    path('map/<uuid:workspace_id>/', map_view),
     path('', workspace_select),
 ]

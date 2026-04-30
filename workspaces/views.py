@@ -13,13 +13,11 @@ def workspace_select(request):
             description = request.POST.get('description', '').strip()
             if name:
                 ws = Workspace.objects.create(name=name, description=description)
-                request.session['workspace_id'] = str(ws.id)
-                return redirect('/map/')
+                return redirect(f'/map/{ws.id}/')
         elif action == 'select':
             workspace_id = request.POST.get('workspace_id')
             if workspace_id:
-                request.session['workspace_id'] = workspace_id
-                return redirect('/map/')
+                return redirect(f'/map/{workspace_id}/')
 
     workspaces = Workspace.objects.filter(is_active=True).order_by('-created_at')
     return render(request, 'workspaces/select.html', {'workspaces': workspaces})

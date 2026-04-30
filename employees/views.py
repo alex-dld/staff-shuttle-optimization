@@ -10,7 +10,7 @@ from .utils import geocode_address
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
-    http_method_names = ['get', 'post', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
 
     def get_queryset(self):
         qs = Employee.objects.filter(geocode_status='ok')
@@ -24,6 +24,28 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'], url_path='update-location')
+    def update_location(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Çalışan bulunamadı.'}, status=404)
+        lat = request.data.get('lat')
+        lng = request.data.get('lng')
+        address = request.data.get('address')
+        api_address = request.data.get('api_address')
+        if lat is None or lng is None:
+            return Response({'error': 'lat ve lng zorunludur.'}, status=400)
+        employee.lat = float(lat)
+        employee.lng = float(lng)
+        if address is not None:
+            employee.address = address
+        if api_address is not None:
+            employee.api_address = api_address
+        employee.geocode_status = 'ok'
+        employee.save()
+        return Response(EmployeeSerializer(employee).data)
 
     @action(detail=False, methods=['post'], url_path='geocode')
     def geocode(self, request):

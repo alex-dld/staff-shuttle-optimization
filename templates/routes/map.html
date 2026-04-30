@@ -297,20 +297,21 @@ textarea { height: 72px; resize: vertical; }
 .btn-preview:hover { background: #0f2a25; }
 .btn-preview:disabled { border-color: #2a2a4a; color: #555; cursor: not-allowed; }
 /* Önizleme onay paneli — haritanın sol altında sabit */
-#add-emp-confirm-panel {
+#add-emp-confirm-panel, #edit-emp-drag-panel {
   display: none;
   position: fixed;
   bottom: 24px;
   left: 336px;
   z-index: 1500;
   background: #1a1a2e;
-  border: 1px solid #f39c12;
   border-radius: 10px;
   padding: 12px 16px;
   min-width: 300px;
   max-width: 420px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
+#add-emp-confirm-panel { border: 1px solid #f39c12; }
+#edit-emp-drag-panel   { border: 1px solid #7c8cf8; }
 #add-emp-confirm-panel .cp-label {
   font-size: 0.67rem; color: #f39c12; text-transform: uppercase;
   letter-spacing: 0.5px; margin-bottom: 4px;
@@ -365,6 +366,28 @@ textarea { height: 72px; resize: vertical; }
 .btn-modal-save { flex: 2; padding: 9px; background: #7c8cf8; border: none; border-radius: 6px; color: #fff; font-size: 0.83rem; font-weight: 600; cursor: pointer; }
 .btn-modal-save:hover { background: #5a6cf5; }
 .btn-modal-save:disabled { background: #3a3a5a; cursor: not-allowed; }
+
+/* ── Edit Employee Location Modal ── */
+.edit-emp-tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+.edit-emp-tab-btn { flex: 1; padding: 7px 4px; background: transparent; border: 1px solid #3a3a5a; border-radius: 6px; color: #888; font-size: 0.76rem; cursor: pointer; transition: all .15s; }
+.edit-emp-tab-btn:hover { border-color: #7c8cf8; color: #bbb; }
+.edit-emp-tab-btn.active { background: #7c8cf8; border-color: #7c8cf8; color: #fff; font-weight: 600; }
+.edit-emp-tab-content { display: none; }
+.edit-emp-tab-content.active { display: block; }
+.edit-emp-tab-content input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px 10px; background: #0d0d1a; border: 1px solid #3a3a5a; border-radius: 6px; color: #e0e0e0; font-size: 0.83rem; margin-bottom: 8px; }
+.edit-emp-tab-content input[type="text"]:focus { outline: none; border-color: #7c8cf8; }
+.edit-emp-geocode-btn { width: 100%; padding: 8px; background: transparent; border: 1px solid #2ecc71; border-radius: 6px; color: #2ecc71; font-size: 0.8rem; cursor: pointer; margin-bottom: 8px; }
+.edit-emp-geocode-btn:hover { background: #0f2a1a; }
+.edit-emp-geocode-btn:disabled { border-color: #2a4a2a; color: #555; cursor: not-allowed; }
+.edit-emp-preview-box { background: #0d1a1a; border: 1px solid #1a4a3a; border-radius: 6px; padding: 8px 10px; font-size: 0.75rem; color: #aaa; margin-bottom: 8px; }
+.edit-emp-preview-box .preview-api-addr { color: #e0e0e0; font-weight: 600; margin-bottom: 3px; }
+.edit-emp-preview-box .preview-coords { color: #2ecc71; }
+.edit-emp-coords-ok { font-size: 0.75rem; color: #2ecc71; margin-top: 2px; }
+.edit-emp-coords-err { font-size: 0.75rem; color: #f88; margin-top: 2px; }
+.edit-emp-drag-info { font-size: 0.78rem; color: #aaa; line-height: 1.5; margin-bottom: 8px; }
+.edit-emp-drag-coords { font-size: 0.75rem; color: #f39c12; margin-top: 4px; min-height: 18px; }
+.emp-edit-btn { display: block; width: 100%; margin-top: 8px; padding: 5px 0; background: transparent; border: 1px solid #3a3a5a; border-radius: 5px; color: #7c8cf8; font-size: 0.75rem; cursor: pointer; }
+.emp-edit-btn:hover { background: #1a1a3a; }
 {% endblock %}
 
 {% block sidebar %}
@@ -520,6 +543,15 @@ textarea { height: 72px; resize: vertical; }
 </div>
 
 <!-- Önizleme onay paneli -->
+<div id="edit-emp-drag-panel">
+  <div class="cp-label" id="edit-emp-drag-panel-label">📍 Pini istediğiniz konuma sürükleyin</div>
+  <div class="cp-address" id="edit-emp-drag-panel-coords"></div>
+  <div class="cp-actions">
+    <button class="cp-btn-save" id="edit-emp-drag-save-btn" disabled>✓ Kaydet</button>
+    <button class="cp-btn-edit" id="edit-emp-drag-cancel-btn">✕ İptal</button>
+  </div>
+</div>
+
 <div id="add-emp-confirm-panel">
   <div class="cp-label">📍 Bulunan konum — önizleme</div>
   <div class="cp-address" id="cp-api-address"></div>
@@ -556,6 +588,42 @@ textarea { height: 72px; resize: vertical; }
   </div>
 </div>
 
+<!-- Edit Employee Location Modal -->
+<div class="modal-backdrop" id="edit-emp-location-modal">
+  <div class="modal" style="width:360px;">
+    <div class="modal-title" id="edit-emp-modal-title">Konum Düzenle</div>
+    <div id="edit-emp-error" class="error-box" style="display:none;"></div>
+    <div class="edit-emp-tabs">
+      <button class="edit-emp-tab-btn active" data-tab="address">Adres</button>
+      <button class="edit-emp-tab-btn" data-tab="coords">Koordinat</button>
+      <button class="edit-emp-tab-btn" data-tab="drag">Sürükle-Bırak</button>
+    </div>
+    <!-- Tab 1: Adres -->
+    <div class="edit-emp-tab-content active" id="edit-tab-address">
+      <input type="text" id="edit-emp-address-input" placeholder="örn. Osmangazi, Atatürk Cad. No:5, Bursa">
+      <button class="edit-emp-geocode-btn" id="edit-emp-geocode-btn">🔍 Konumu Bul</button>
+      <div id="edit-emp-geocode-preview" class="edit-emp-preview-box" style="display:none;">
+        <div class="preview-api-addr" id="edit-emp-api-address"></div>
+        <div class="preview-coords" id="edit-emp-coords-display"></div>
+      </div>
+    </div>
+    <!-- Tab 2: Koordinat -->
+    <div class="edit-emp-tab-content" id="edit-tab-coords">
+      <input type="text" id="edit-emp-coords-input" placeholder="örn: 40.22727, 29.06131">
+      <div id="edit-emp-coords-preview"></div>
+    </div>
+    <!-- Tab 3: Sürükle-Bırak -->
+    <div class="edit-emp-tab-content" id="edit-tab-drag">
+      <p class="edit-emp-drag-info">Harita üzerinde beliren pini istediğiniz konuma sürükleyin, ardından Kaydet'e basın.</p>
+      <div class="edit-emp-drag-coords" id="edit-emp-drag-coords"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn-modal-cancel" id="edit-emp-cancel-btn">İptal</button>
+      <button class="btn-modal-save" id="edit-emp-save-btn" disabled>Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rename modal -->
 <div class="modal-backdrop" id="rename-modal">
   <div class="modal">
@@ -580,6 +648,11 @@ textarea { height: 72px; resize: vertical; }
   // ── Employee markers state ──
   let empMarkerGroup = null;
   let empMarkersVisible = false;
+
+  // ── Edit employee location state ──
+  let currentEditEmp = null;
+  let editEmpPreviewData = null;
+  let editEmpDragMarker = null;
 
   // ── Isochrone layer ──
   let isochroneLayer = null;
@@ -1705,7 +1778,7 @@ textarea { height: 72px; resize: vertical; }
       const bg = e._assignment === 'assigned'    ? 'linear-gradient(135deg,#2ecc71,#27ae60)'
                : e._assignment === 'unreachable' ? 'linear-gradient(135deg,#e74c3c,#c0392b)'
                : 'linear-gradient(135deg,#7c8cf8,#5a6cf5)';
-      L.marker([e.lat, e.lng], {
+      const marker = L.marker([e.lat, e.lng], {
         icon: L.divIcon({
           className: '',
           html: '<div class="emp-marker" style="background:' + bg + '">👤</div>',
@@ -1716,8 +1789,15 @@ textarea { height: 72px; resize: vertical; }
         .bindPopup(
           '<div class="emp-popup-code">' + e.personnel_code + '</div>'
           + '<div class="emp-popup-addr">' + e.address + '</div>'
+          + '<button class="emp-edit-btn" data-id="' + e.id + '">✏️ Konumu Düzenle</button>'
         )
         .addTo(empMarkerGroup);
+      marker.on('popupopen', (function(emp) {
+        return function() {
+          var btn = document.querySelector('.emp-edit-btn[data-id="' + emp.id + '"]');
+          if (btn) btn.onclick = function() { openEditEmpModal(emp); };
+        };
+      })(e));
     });
 
     empMarkersVisible = true;
@@ -2045,7 +2125,7 @@ textarea { height: 72px; resize: vertical; }
         const btn = document.getElementById('emp-toggle-btn');
         if (btn) { btn.textContent = 'Gizle'; btn.classList.add('active'); }
       }
-      L.marker([data.lat, data.lng], {
+      var newMarker = L.marker([data.lat, data.lng], {
         icon: L.divIcon({
           className: '',
           html: '<div class="emp-marker">👤</div>',
@@ -2056,8 +2136,15 @@ textarea { height: 72px; resize: vertical; }
         .bindPopup(
           '<div class="emp-popup-code">' + data.personnel_code + '</div>'
           + '<div class="emp-popup-addr">' + data.address + '</div>'
+          + '<button class="emp-edit-btn" data-id="' + data.id + '">✏️ Konumu Düzenle</button>'
         )
         .addTo(empMarkerGroup);
+      newMarker.on('popupopen', (function(emp) {
+        return function() {
+          var btn = document.querySelector('.emp-edit-btn[data-id="' + emp.id + '"]');
+          if (btn) btn.onclick = function() { openEditEmpModal(emp); };
+        };
+      })(data));
 
       map.flyTo([data.lat, data.lng], 15, { duration: 0.8 });
 
@@ -2080,6 +2167,258 @@ textarea { height: 72px; resize: vertical; }
   document.getElementById('cp-save-btn').addEventListener('click', function() {
     saveEmployee(this);
   });
+
+  // ── Edit Employee Location ──────────────────────────────────────────────────
+
+  function openEditEmpModal(emp) {
+    currentEditEmp = emp;
+    editEmpPreviewData = null;
+
+    document.getElementById('edit-emp-modal-title').textContent = emp.personnel_code + ' — Konum Düzenle';
+    document.getElementById('edit-emp-error').style.display = 'none';
+    document.getElementById('edit-emp-save-btn').disabled = true;
+
+    // Reset tabs to address tab
+    switchEditTab('address');
+
+    // Pre-fill address input with current address
+    document.getElementById('edit-emp-address-input').value = emp.address || '';
+    document.getElementById('edit-emp-geocode-preview').style.display = 'none';
+
+    document.getElementById('edit-emp-location-modal').classList.add('open');
+  }
+
+  function closeEditEmpModal() {
+    if (editEmpDragMarker) { map.removeLayer(editEmpDragMarker); editEmpDragMarker = null; }
+    editEmpPreviewData = null;
+    currentEditEmp = null;
+    document.getElementById('edit-emp-location-modal').classList.remove('open');
+    document.getElementById('edit-emp-drag-panel').style.display = 'none';
+  }
+
+  function switchEditTab(tab) {
+    // Clean up drag marker when switching away from drag tab
+    if (editEmpDragMarker) { map.removeLayer(editEmpDragMarker); editEmpDragMarker = null; }
+    editEmpPreviewData = null;
+    document.getElementById('edit-emp-save-btn').disabled = true;
+    document.getElementById('edit-emp-error').style.display = 'none';
+
+    document.querySelectorAll('.edit-emp-tab-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('.edit-emp-tab-content').forEach(function(c) {
+      c.classList.remove('active');
+    });
+    document.getElementById('edit-tab-' + tab).classList.add('active');
+
+    if (tab === 'drag') startEditDragMode();
+  }
+
+  document.querySelectorAll('.edit-emp-tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { switchEditTab(this.dataset.tab); });
+  });
+
+  // Tab 1: Address geocoding
+  document.getElementById('edit-emp-geocode-btn').addEventListener('click', async function() {
+    const address = document.getElementById('edit-emp-address-input').value.trim();
+    const errEl = document.getElementById('edit-emp-error');
+    errEl.style.display = 'none';
+    editEmpPreviewData = null;
+    document.getElementById('edit-emp-save-btn').disabled = true;
+    document.getElementById('edit-emp-geocode-preview').style.display = 'none';
+
+    if (!address) {
+      errEl.textContent = 'Adres alanı boş olamaz.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    this.disabled = true;
+    this.textContent = '🔍 Aranıyor…';
+
+    try {
+      const resp = await fetch('/api/employees/geocode/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ address }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        errEl.textContent = data.error || 'Geocode hatası.';
+        errEl.style.display = 'block';
+        return;
+      }
+      editEmpPreviewData = { lat: data.lat, lng: data.lng, address: address, api_address: data.api_address };
+      document.getElementById('edit-emp-api-address').textContent = data.api_address;
+      document.getElementById('edit-emp-coords-display').textContent =
+        data.lat.toFixed(5) + ', ' + data.lng.toFixed(5);
+      document.getElementById('edit-emp-geocode-preview').style.display = 'block';
+      document.getElementById('edit-emp-save-btn').disabled = false;
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message;
+      errEl.style.display = 'block';
+    } finally {
+      this.disabled = false;
+      this.textContent = '🔍 Konumu Bul';
+    }
+  });
+
+  // Tab 2: Coordinate input
+  document.getElementById('edit-emp-coords-input').addEventListener('input', function() {
+    const val = this.value.trim();
+    const previewEl = document.getElementById('edit-emp-coords-preview');
+    editEmpPreviewData = null;
+    document.getElementById('edit-emp-save-btn').disabled = true;
+
+    if (!val) { previewEl.innerHTML = ''; return; }
+
+    const parts = val.split(',');
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        editEmpPreviewData = {
+          lat: lat, lng: lng,
+          address: currentEditEmp ? currentEditEmp.address : '',
+          api_address: currentEditEmp ? currentEditEmp.api_address : '',
+        };
+        previewEl.innerHTML = '<div class="edit-emp-coords-ok">✓ ' + lat.toFixed(5) + ', ' + lng.toFixed(5) + '</div>';
+        document.getElementById('edit-emp-save-btn').disabled = false;
+        return;
+      }
+    }
+    previewEl.innerHTML = '<div class="edit-emp-coords-err">Geçersiz format. Örnek: 40.22727, 29.06131</div>';
+  });
+
+  // Tab 3: Drag & drop
+  function startEditDragMode() {
+    if (!currentEditEmp) return;
+    const lat = currentEditEmp.lat;
+    const lng = currentEditEmp.lng;
+
+    // Close modal so map is fully accessible
+    document.getElementById('edit-emp-location-modal').classList.remove('open');
+
+    editEmpDragMarker = L.marker([lat, lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="width:32px;height:32px;border-radius:50%;'
+          + 'background:linear-gradient(135deg,#7c8cf8,#5a6cf5);'
+          + 'border:3px solid #fff;display:flex;align-items:center;'
+          + 'justify-content:center;font-size:15px;'
+          + 'box-shadow:0 0 0 4px rgba(124,140,248,0.35),0 2px 8px rgba(0,0,0,0.4);'
+          + 'cursor:grab;">📍</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      }),
+      zIndexOffset: 1000,
+    }).addTo(map);
+
+    const dragPanel = document.getElementById('edit-emp-drag-panel');
+    const dragSaveBtn = document.getElementById('edit-emp-drag-save-btn');
+    document.getElementById('edit-emp-drag-panel-label').textContent =
+      currentEditEmp.personnel_code + ' — Pini istediğiniz konuma sürükleyin';
+    document.getElementById('edit-emp-drag-panel-coords').textContent = '';
+    dragSaveBtn.disabled = true;
+    dragPanel.style.display = 'block';
+
+    editEmpDragMarker.on('dragend', function(ev) {
+      const pos = ev.target.getLatLng();
+      editEmpPreviewData = {
+        lat: pos.lat, lng: pos.lng,
+        address: currentEditEmp.address,
+        api_address: currentEditEmp.api_address,
+      };
+      document.getElementById('edit-emp-drag-panel-coords').textContent =
+        pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+      dragSaveBtn.disabled = false;
+    });
+
+    map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
+  }
+
+  // Save
+  document.getElementById('edit-emp-save-btn').addEventListener('click', async function() {
+    if (!editEmpPreviewData || !currentEditEmp) return;
+    const errEl = document.getElementById('edit-emp-error');
+    errEl.style.display = 'none';
+
+    this.disabled = true;
+    this.textContent = 'Kaydediliyor…';
+
+    try {
+      const resp = await fetch('/api/employees/' + currentEditEmp.id + '/update-location/', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(editEmpPreviewData),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        errEl.textContent = data.error || 'Kaydetme hatası.';
+        errEl.style.display = 'block';
+        this.disabled = false;
+        this.textContent = 'Kaydet';
+        return;
+      }
+
+      // Update local arrays
+      var idx = WORKSPACE_EMPLOYEES.findIndex(function(e) { return e.id === data.id; });
+      if (idx !== -1) WORKSPACE_EMPLOYEES[idx] = data;
+      var idx2 = ALL_EMPLOYEES.findIndex(function(e) { return e.id === data.id; });
+      if (idx2 !== -1) ALL_EMPLOYEES[idx2] = data;
+
+      closeEditEmpModal();
+      if (empMarkersVisible) showEmployeeMarkers();
+      showToast('✓ Konum güncellendi.');
+    } catch (err) {
+      errEl.textContent = 'Bağlantı hatası: ' + err.message;
+      errEl.style.display = 'block';
+      this.disabled = false;
+      this.textContent = 'Kaydet';
+    }
+  });
+
+  // Cancel & backdrop close
+  document.getElementById('edit-emp-cancel-btn').addEventListener('click', closeEditEmpModal);
+  document.getElementById('edit-emp-location-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditEmpModal();
+  });
+
+  // Drag panel save
+  document.getElementById('edit-emp-drag-save-btn').addEventListener('click', async function() {
+    if (!editEmpPreviewData || !currentEditEmp) return;
+    this.disabled = true;
+    this.textContent = 'Kaydediliyor…';
+    try {
+      const resp = await fetch('/api/employees/' + currentEditEmp.id + '/update-location/', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(editEmpPreviewData),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        showToast('Hata: ' + (data.error || 'Kaydetme başarısız.'));
+        this.disabled = false;
+        this.textContent = '✓ Kaydet';
+        return;
+      }
+      var idx = WORKSPACE_EMPLOYEES.findIndex(function(e) { return e.id === data.id; });
+      if (idx !== -1) WORKSPACE_EMPLOYEES[idx] = data;
+      var idx2 = ALL_EMPLOYEES.findIndex(function(e) { return e.id === data.id; });
+      if (idx2 !== -1) ALL_EMPLOYEES[idx2] = data;
+      closeEditEmpModal();
+      if (empMarkersVisible) showEmployeeMarkers();
+      showToast('✓ Konum güncellendi.');
+    } catch (err) {
+      showToast('Bağlantı hatası: ' + err.message);
+      this.disabled = false;
+      this.textContent = '✓ Kaydet';
+    }
+  });
+
+  // Drag panel cancel
+  document.getElementById('edit-emp-drag-cancel-btn').addEventListener('click', closeEditEmpModal);
 
 </script>
 {% endblock %}

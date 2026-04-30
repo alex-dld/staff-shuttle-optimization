@@ -23,15 +23,10 @@ def _valid_uuid(value):
         return False
 
 
-def map_view(request):
-    workspace_id = request.session.get('workspace_id')
-    if not workspace_id:
-        return redirect('/')
-
+def map_view(request, workspace_id):
     try:
         workspace = Workspace.objects.get(id=workspace_id)
     except Workspace.DoesNotExist:
-        del request.session['workspace_id']
         return redirect('/')
 
     return render(request, 'routes/map.html', {'workspace': workspace})
@@ -42,16 +37,13 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
     serializer_class = RouteGroupSerializer
 
     def get_queryset(self):
-        workspace_id = (
-            self.request.query_params.get('workspace')
-            or self.request.session.get('workspace_id')
-        )
+        workspace_id = self.request.query_params.get('workspace')
         if not workspace_id or not _valid_uuid(workspace_id):
             return RouteGroup.objects.none()
         return RouteGroup.objects.filter(workspace_id=workspace_id).prefetch_related('routes')
 
     def perform_create(self, serializer):
-        workspace_id = self.request.data.get('workspace') or self.request.session.get('workspace_id')
+        workspace_id = self.request.data.get('workspace')
         if not workspace_id:
             raise ValidationError({'workspace': 'workspace is required'})
         try:
@@ -77,7 +69,7 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
     def assign_all(self, request):
         import time
 
-        workspace_id = request.session.get('workspace_id') or request.data.get('workspace')
+        workspace_id = request.data.get('workspace')
         if not workspace_id or not _valid_uuid(workspace_id):
             return Response({'error': 'workspace gerekli'}, status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -188,10 +180,7 @@ class RouteViewSet(viewsets.ModelViewSet):
     serializer_class = RouteSerializer
 
     def get_queryset(self):
-        workspace_id = (
-            self.request.query_params.get('workspace')
-            or self.request.session.get('workspace_id')
-        )
+        workspace_id = self.request.query_params.get('workspace')
         if workspace_id and _valid_uuid(workspace_id):
             return Route.objects.filter(route_group__workspace_id=workspace_id)
         return Route.objects.none()
@@ -200,7 +189,7 @@ class RouteViewSet(viewsets.ModelViewSet):
         route_group = serializer.validated_data.get('route_group')
         if not route_group:
             raise ValidationError({'route_group_id': 'route_group_id is required'})
-        workspace_id = self.request.session.get('workspace_id') or self.request.data.get('workspace')
+        workspace_id = self.request.data.get('workspace')
         if workspace_id and str(route_group.workspace_id) != str(workspace_id):
             raise ValidationError({'route_group_id': 'route_group does not belong to this workspace'})
         serializer.save()
