@@ -1200,7 +1200,12 @@ textarea { height: 72px; resize: vertical; }
     try {
       const res = await fetch('/api/route-groups/assign-all/', {
         method: 'POST',
-        headers: { 'Accept': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ workspace: WORKSPACE_ID }),
       });
       data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
