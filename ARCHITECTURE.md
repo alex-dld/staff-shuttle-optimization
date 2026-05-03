@@ -15,9 +15,10 @@
 | `workspaces/views.py` | `workspace_select()` (template view) + `WorkspaceViewSet` (CRUD API) |
 | `workspaces/serializers.py` | `WorkspaceSerializer` |
 | **employees/models.py** | `Employee` modeli (personnel_code, address, lat/lng, geocode_status) |
-| `employees/views.py` | `EmployeeViewSet` + custom actions: `update_location`, `geocode`, `assign` |
-| `employees/serializers.py` | `EmployeeSerializer` (read) · `EmployeeCreateSerializer` (write) |
-| **`employees/utils.py`** | `geocode_address()` — Yandex API çağrısı, tek yerde |
+| `employees/views.py` | `EmployeeViewSet` + custom actions: `update_location`, `geocode`, `assign`, `import_row`, `parse_excel` |
+| `employees/serializers.py` | `EmployeeSerializer` (read, `address_score` hesaplanır) · `EmployeeCreateSerializer` (write) |
+| **`employees/utils.py`** | `geocode_address()` — Yandex API çağrısı · `address_match_score()` — token + string benzerlik skoru |
+| `templates/employees/manage.html` | Çalışan yönetim UI — tablo, Excel import (async per-row), konum düzenleme, tümünü sil |
 | `employees/management/commands/import_employees.py` | Excel'den toplu import + Yandex geocoding → `Docs/geocode_results.xlsx` |
 | **routes/models.py** | `RouteGroup` (workspace FK) · `Route` (route_group FK, geojson, waypoints) · `Stop` (route FK, isochrone cache) |
 | `routes/views.py` | `RouteGroupViewSet` · `RouteViewSet` · `StopViewSet` + custom actions |
@@ -83,18 +84,36 @@ Workspace
 ### Employee
 | Method | URL | View | Servis Çağrısı |
 |--------|-----|------|----------------|
-| GET | `/api/employees/?workspace={uuid}` | `EmployeeViewSet.list` | Sadece `geocode_status=ok` |
+| GET | `/api/employees/?all=1` | `EmployeeViewSet.list` | Tüm çalışanlar (`address_score` dahil) |
+| GET | `/api/employees/?workspace={uuid}` | `EmployeeViewSet.list` | Workspace'e atanmış, sadece `geocode_status=ok` |
 | POST | `/api/employees/` | `EmployeeViewSet.create` | — |
 | PATCH | `/api/employees/{id}/` | `EmployeeViewSet` | — |
+| DELETE | `/api/employees/{id}/` | `EmployeeViewSet` | — |
 | **PATCH** | `/api/employees/{id}/update-location/` | `EmployeeViewSet.update_location` | Coords güncelle, API çağrısı yok |
 | **POST** | `/api/employees/geocode/` | `EmployeeViewSet.geocode` | `geocode_address()` (Yandex), kaydetmez |
 | **POST** | `/api/employees/assign/` | `EmployeeViewSet.assign` | Workspace M2M güncelle |
+| **POST** | `/api/employees/parse-excel/` | `EmployeeViewSet.parse_excel` | Excel'i oku, çakışmaları tespit et |
+| **POST** | `/api/employees/import-row/` | `EmployeeViewSet.import_row` | Tek satır geocode + kaydet; `{status, api_address}` döner |
 
 ### Template Views
 | URL | View | Template |
 |-----|------|----------|
 | `/` | `workspace_select()` | `workspaces/select.html` |
+| `/employees/` | `manage_view()` | `employees/manage.html` |
 | `/map/{uuid}/` | `map_view()` | `routes/map.html` |
+
+---
+
+## Template → API Bağlantıları (employees/manage.html)
+
+| JS Fonksiyonu | Çağırdığı Endpoint | Ne Zaman |
+|---------------|--------------------|----------|
+| `loadEmployees()` | GET `/api/employees/?all=1` | Sayfa yüklenince, her import adımından sonra |
+| `import-start` → `parse_excel` | POST `/api/employees/parse-excel/` | Dosya seçilip "İçe Aktar" tıklanınca |
+| `runImport(rows)` → her satır | POST `/api/employees/import-row/` | Async for-loop, 180ms aralıkla |
+| `openEditModal` → adres tab | POST `/api/employees/geocode/` + PATCH `update-location` | Konum önizle + kaydet |
+| `openEditModal` → coords/drag tab | PATCH `/api/employees/{id}/update-location/` | Koordinat/sürükle kaydet |
+| `deleteAllEmployees()` | DELETE `/api/employees/{id}/` (her biri) | "Tümünü Sil" onaylanınca |
 
 ---
 
@@ -165,16 +184,17 @@ Workspace
 
 ```
 staff-shuttle-optimization/
-├── core/               # Django proje ayarları
+├── core/               # Django proje ayarları (settings, urls)
 ├── workspaces/         # Workspace app
-├── employees/          # Employee app + import komutları
+├── employees/          # Employee app + utils (geocode) + import komutları
 ├── routes/             # Route/Stop app + services.py (dış API'ler)
 ├── vehicles/           # Henüz boş
 ├── templates/
 │   ├── base.html
 │   ├── workspaces/select.html
-│   └── routes/map.html   ← Ana UI
-├── Docs/               # Yandex API notları, Excel çıktıları
+│   ├── employees/manage.html   ← Çalışan yönetim UI
+│   └── routes/map.html         ← Harita + rota UI
+├── Docs/               # Excel çıktıları, geocode analiz
 ├── requirements.txt
 ├── STATUS.md           # Değişiklik günlüğü (Türkçe)
 └── ARCHITECTURE.md     ← Bu dosya

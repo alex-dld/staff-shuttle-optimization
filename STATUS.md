@@ -283,6 +283,44 @@ Yanıt formatı: rota bazında grup → durak listesi → atanan çalışanlar +
 
 ---
 
+### 27. Çalışan Yönetimi UI — `templates/employees/manage.html`
+
+Çalışanları Yönet sayfası (`/employees/`) oluşturuldu:
+
+- Tablo: sicil no, adres, API adresi, operasyonlar, adres uyum skoru, geocode durumu; kolon bazlı filtreleme + sıralama, sayfalama (25/sayfa)
+- **Excel'den İçe Aktar:** Drop-zone ile `.xlsx` yükleme, parse-excel ile çakışma tespiti, per-row async import, arka planda çalışmaya devam
+- **Tümünü Sil:** Onay dialog'u ile tüm çalışanları siler
+- **Yeni Çalışan Ekle:** Adres veya koordinat ile, harita önizlemeli
+- **Konum Düzenle:** Adresle / koordinatla / haritadan sürükle-bırak, 3 sekme
+
+---
+
+### 28. Import Kilit Davranışı — `templates/employees/manage.html`
+
+Excel import çalışırken yeni dosya yüklenemez. Modal açılınca sadece progress ekranı gösterilir; import bitince otomatik olarak sonuç ekranına geçer. Önceki kuyruk sistemi kaldırıldı.
+
+---
+
+### 29. Geocode Canlı Log Paneli — `templates/employees/manage.html`, `employees/views.py`
+
+Import progress ekranına monospace log paneli eklendi. Her satır işlenirken:
+- `[N/toplam] sicil_no → adres` (gri)
+- `✓ ok (Xms) → API adresi` (yeşil) / `– atlandı` (gri) / `✗ hata: sebep` (kırmızı)
+
+`import-row` endpoint artık `api_address` döndürüyor (önceden sadece `{status: 'ok'}` dönüyordu).
+
+---
+
+### 30. Django Loglama — `employees/views.py`, `employees/utils.py`, `core/settings.py`
+
+`employees` logger'ı `DEBUG` seviyesinde terminal'e yazıyor:
+
+- `employees.utils` → `geocode_address()`: istek URL'i, HTTP durum kodu + yanıt süresi (ms), sonuç koordinatları ve API adresi; `no_result` / `api_error` için WARNING/ERROR
+- `employees.views` → `import_row`: her satır için geocode isteği öncesi INFO, başarı sonrası koordinat + API adresi, hata sonrası reason + detail ERROR
+- `core/settings.py`'a `LOGGING` dict eklendi: `[LEVEL] HH:MM:SS name  message` formatı
+
+---
+
 ## Bekleyen Görevler
 
 - [ ] **Hatalı adresleri düzelt:** 29 çalışanın geocode işlemi başarısız oldu (`geocode_status=failed`). `Docs/geocode_results.xlsx` dosyasında `STATUS=failed` olan satırları incele, adresleri düzelterek `import_employees` komutunu tekrar çalıştır. Başarısız olan kayıtlar: A44PM, E56PM, I62UB, Q87JM, M111VM, D159ZM, M164CM, L168MB, T180VB, P183CM, Z200QM, G333IM, J339OB, A340GM, O346KM, K359QB, E374EM, S453MB, J466NB, G478SM, F484GM, I269MM, Z305VM, T240BM, H568VM, S577ZM, X512HB, K508MB, U594UB
@@ -318,6 +356,6 @@ Yanıt formatı: rota bazında grup → durak listesi → atanan çalışanlar +
 | Hatalı adres düzeltme (25 kayıt — manuel) | ⚠️ Bekliyor |
 | Koordinat girerek çalışan ekleme | ⏳ Geliştirilmedi |
 | Haritadan sürükle-bırak konum güncelleme | ⏳ Geliştirilmedi |
-| Çalışan yönetimi (UI) | ⏳ Geliştirilmedi |
+| Çalışan yönetimi (UI) | ✅ Çalışıyor |
 | Araç yönetimi | ⏳ Geliştirilmedi |
 | Rota optimizasyonu | ⏳ Geliştirilmedi |
