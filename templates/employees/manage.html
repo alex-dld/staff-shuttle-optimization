@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Çalışanları Yönet — Servis Optimizasyonu</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0d0d1a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      width: 100%;
+      background: #12122a;
+      border-bottom: 1px solid #2a2a4a;
+      padding: 0 32px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-brand { font-size: 1rem; font-weight: 700; color: #7c8cf8; letter-spacing: 0.5px; }
+    .btn-nav {
+      background: transparent;
+      border: 1px solid #3a3a5a;
+      border-radius: 6px;
+      color: #b0b8ff;
+      font-size: 0.82rem;
+      padding: 6px 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn-nav:hover { border-color: #7c8cf8; background: #1a1a3a; color: #fff; }
+
+    .page {
+      width: 100%;
+      padding: 36px 32px;
+    }
+
+    .page-header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+    .page-title { font-size: 1.4rem; font-weight: 700; color: #e0e0e0; }
+    .total-badge { font-size: 0.82rem; color: #555; }
+    .total-badge span { color: #7c8cf8; font-weight: 700; }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-top: 1px solid #1e1e38;
+      font-size: 0.82rem;
+      color: #666;
+    }
+    .page-info { }
+    .page-nav { display: flex; align-items: center; gap: 10px; }
+    .btn-page {
+      background: transparent;
+      border: 1px solid #3a3a5a;
+      border-radius: 5px;
+      color: #b0b8ff;
+      font-size: 0.8rem;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn-page:hover:not(:disabled) { border-color: #7c8cf8; background: #1a1a3a; }
+    .btn-page:disabled { opacity: 0.3; cursor: not-allowed; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .toolbar-left { display: flex; gap: 10px; align-items: center; }
+    .toolbar-right { display: flex; gap: 10px; }
+
+    .btn-primary {
+      background: #7c8cf8;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #6a7ae8; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #3a3a5a;
+      border-radius: 6px;
+      color: #b0b8ff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn-secondary:hover { border-color: #7c8cf8; background: #1a1a3a; }
+
+    .table-wrap {
+      background: #12122a;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
+    col.col-code   { width: 110px; }
+    col.col-addr   { width: 26%; }
+    col.col-api    { width: 26%; }
+    col.col-ops    { width: 16%; }
+    col.col-score  { width: 100px; }
+    col.col-status { width: 90px; }
+    col.col-action { width: 150px; }
+
+    thead tr { background: #1a1a3a; border-bottom: 1px solid #2a2a4a; }
+    thead th {
+      text-align: left;
+      padding: 11px 16px;
+      color: #888;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    tbody tr { border-bottom: 1px solid #1e1e38; transition: background 0.12s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #181830; }
+
+    td { padding: 11px 16px; vertical-align: middle; }
+    .td-clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .td-dim { color: #888; }
+
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .badge-ok   { background: #0f3020; color: #4cde8a; }
+    .badge-fail { background: #2e1010; color: #e05a5a; }
+    .badge-pend { background: #1e1e10; color: #b0a020; }
+
+    .btn-edit {
+      background: transparent;
+      border: 1px solid #3a3a5a;
+      border-radius: 5px;
+      color: #b0b8ff;
+      font-size: 0.78rem;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn-edit:hover { border-color: #7c8cf8; background: #1a1a3a; }
+
+    .btn-delete {
+      background: transparent;
+      border: 1px solid #5a2a2a;
+      border-radius: 5px;
+      color: #e05a5a;
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      cursor: pointer;
+      margin-left: 6px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn-delete:hover { border-color: #e05a5a; background: #2a1010; }
+
+    .row-check, #check-all {
+      width: 15px; height: 15px; cursor: pointer; accent-color: #7c8cf8;
+    }
+    tbody tr.selected { background: #16163a; }
+
+    #selection-bar {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #12122a;
+      border-top: 2px solid #7c8cf8;
+      padding: 12px 32px;
+      align-items: center;
+      gap: 16px;
+      z-index: 500;
+    }
+    #selection-bar.open { display: flex; }
+    #selection-count { color: #b0b8ff; font-size: 0.88rem; flex: 1; }
+    .btn-bar-clear {
+      background: transparent; border: 1px solid #3a3a5a; border-radius: 6px;
+      color: #888; font-size: 0.85rem; padding: 6px 14px; cursor: pointer;
+    }
+    .btn-bar-clear:hover { border-color: #666; color: #ccc; }
+    .btn-bar-delete {
+      background: #3a1010; border: 1px solid #e05a5a; border-radius: 6px;
+      color: #e05a5a; font-size: 0.85rem; font-weight: 600; padding: 6px 16px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-bar-delete:hover { background: #5a1a1a; }
+
+    thead th { cursor: pointer; user-select: none; }
+    thead th.no-sort { cursor: default; }
+    .sort-icon { font-size: 0.7rem; color: #444; margin-left: 4px; }
+    th.sort-asc .sort-icon { color: #7c8cf8; }
+    th.sort-desc .sort-icon { color: #7c8cf8; }
+
+    .filter-row td {
+      background: #101025;
+      padding: 5px 8px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .filter-input {
+      width: 100%;
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 0.78rem;
+      padding: 4px 7px;
+      outline: none;
+      font-family: inherit;
+    }
+    .filter-input:focus { border-color: #7c8cf8; }
+    .filter-input option { background: #1a1a2e; }
+
+    .op-tag {
+      display: inline-block;
+      background: #1a1a3a;
+      border: 1px solid #3a3a6a;
+      border-radius: 4px;
+      color: #9090e0;
+      font-size: 0.74rem;
+      padding: 2px 7px;
+      margin: 1px 2px 1px 0;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #3a3a5a;
+      border-radius: 10px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      color: #666;
+      font-size: 0.88rem;
+      margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #7c8cf8; background: #16163a; color: #b0b8ff; }
+    .drop-zone .drop-icon { font-size: 2rem; margin-bottom: 8px; }
+    .drop-zone .drop-hint { font-size: 0.76rem; color: #555; margin-top: 4px; }
+
+    .result-box { margin-top: 14px; }
+    .result-stats { display: flex; gap: 12px; margin-bottom: 12px; }
+    .stat { flex: 1; background: #0f0f1a; border-radius: 8px; padding: 12px; text-align: center; }
+    .stat-num { font-size: 1.5rem; font-weight: 700; }
+    .stat-num.ok   { color: #4cde8a; }
+    .stat-num.fail { color: #e05a5a; }
+    .stat-num.skip { color: #b0a020; }
+    .stat-label { font-size: 0.72rem; color: #666; margin-top: 2px; }
+
+    .error-list { font-size: 0.78rem; color: #e05a5a; background: #1a0f0f; border: 1px solid #3a1a1a; border-radius: 6px; padding: 10px 12px; max-height: 140px; overflow-y: auto; }
+    .error-list div { padding: 2px 0; border-bottom: 1px solid #2a1a1a; }
+    .error-list div:last-child { border-bottom: none; }
+
+    .spinner { display: flex; justify-content: center; align-items: center; padding: 32px; gap: 8px; }
+    .spin-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c8cf8; animation: spin-bounce 1.2s infinite ease-in-out; }
+    .spin-dot:nth-child(2) { animation-delay: 0.2s; }
+    .spin-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes spin-bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 32px;
+      width: 580px;
+      max-width: 95vw;
+    }
+
+    .modal-title { font-size: 1rem; font-weight: 700; color: #e0e0e0; margin-bottom: 18px; }
+
+    .field-label { font-size: 0.78rem; color: #888; margin-bottom: 5px; }
+    .field-wrap { margin-bottom: 14px; }
+
+    .field-input {
+      width: 100%;
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      padding: 8px 11px;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .field-input:focus { border-color: #7c8cf8; }
+
+    .error-box {
+      background: #2a0f0f;
+      border: 1px solid #5a2a2a;
+      border-radius: 6px;
+      padding: 8px 11px;
+      font-size: 0.8rem;
+      color: #f88;
+      margin-bottom: 14px;
+    }
+
+    .preview-box {
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-size: 0.8rem;
+    }
+    .preview-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+    .preview-addr { color: #ccc; line-height: 1.5; }
+    .preview-coords { color: #666; font-size: 0.75rem; margin-top: 4px; }
+
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+    .btn-cancel {
+      background: transparent;
+      border: 1px solid #3a3a5a;
+      border-radius: 6px;
+      color: #888;
+      font-size: 0.85rem;
+      padding: 7px 16px;
+      cursor: pointer;
+    }
+    .btn-cancel:hover { border-color: #666; color: #ccc; }
+
+    .btn-save {
+      background: #7c8cf8;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 7px 20px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: #6a7ae8; }
+    .btn-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-preview {
+      width: 100%;
+      background: transparent;
+      border: 1px dashed #4a4a6a;
+      border-radius: 6px;
+      color: #9090e0;
+      font-size: 0.83rem;
+      padding: 8px;
+      cursor: pointer;
+      margin-bottom: 14px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-preview:hover { border-color: #7c8cf8; color: #b0b8ff; }
+    .btn-preview:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      background: #0f0f1a;
+      border-radius: 7px;
+      padding: 4px;
+    }
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      color: #666;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab-btn.active { background: #2a2a4a; color: #b0b8ff; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .coords-row { display: flex; gap: 10px; }
+    .coords-row .field-wrap { flex: 1; }
+
+    #add-preview-map {
+      width: 100%;
+      height: 260px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #2a2a4a;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="header-brand">Servis Optimizasyonu</span>
+    <nav>
+      <a href="/" class="btn-nav">← Operasyon Seç</a>
+    </nav>
+  </header>
+
+  <div class="page">
+    <div class="page-header">
+      <div class="page-title">Çalışanları Yönet</div>
+      <div class="total-badge">Toplam <span id="total-count">—</span> çalışan</div>
+    </div>
+
+    <div class="toolbar">
+      <div class="toolbar-left"></div>
+      <div class="toolbar-right">
+        <button class="btn-secondary" id="open-import-modal">Excel'den İçe Aktar</button>
+        <button class="btn-bar-delete" id="delete-all-btn">Tümünü Sil</button>
+        <button class="btn-primary" id="open-add-modal">+ Yeni Çalışan</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <colgroup>
+          <col style="width:40px">
+          <col class="col-code">
+          <col class="col-addr">
+          <col class="col-api">
+          <col class="col-ops">
+          <col class="col-score">
+          <col class="col-status">
+          <col class="col-action">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="no-sort" style="text-align:center"><input type="checkbox" id="check-all"></th>
+            <th data-sort="code">Sicil No <span class="sort-icon">⇅</span></th>
+            <th data-sort="address">Adres <span class="sort-icon">⇅</span></th>
+            <th data-sort="apiAddr">API Adresi <span class="sort-icon">⇅</span></th>
+            <th data-sort="ops">Operasyonlar <span class="sort-icon">⇅</span></th>
+            <th data-sort="score">Adres Uyumu <span class="sort-icon">⇅</span></th>
+            <th data-sort="status">Durum <span class="sort-icon">⇅</span></th>
+            <th class="no-sort"></th>
+          </tr>
+          <tr class="filter-row">
+            <td></td>
+            <td><input class="filter-input" id="f-code" placeholder="Ara…"></td>
+            <td><input class="filter-input" id="f-address" placeholder="Ara…"></td>
+            <td><input class="filter-input" id="f-api" placeholder="Ara…"></td>
+            <td><input class="filter-input" id="f-ops" placeholder="Ara…"></td>
+            <td>
+              <select class="filter-input" id="f-score">
+                <option value="">Tümü</option>
+                <option value="high">≥%75</option>
+                <option value="mid">%50–74</option>
+                <option value="low"><%50</option>
+                <option value="none">—</option>
+              </select>
+            </td>
+            <td>
+              <select class="filter-input" id="f-status">
+                <option value="">Tümü</option>
+                <option value="ok">Tamam</option>
+                <option value="failed">Hatalı</option>
+                <option value="pending">Bekliyor</option>
+              </select>
+            </td>
+            <td></td>
+          </tr>
+        </thead>
+        <tbody id="employee-tbody">
+          <tr><td colspan="8" style="text-align:center;padding:40px;color:#555">Yükleniyor...</td></tr>
+        </tbody>
+      </table>
+      <div class="pagination" id="pagination" style="display:none">
+        <span class="page-info" id="page-info"></span>
+        <div class="page-nav">
+          <button class="btn-page" id="prev-page">‹ Önceki</button>
+          <span id="page-num" style="color:#888;min-width:80px;text-align:center"></span>
+          <button class="btn-page" id="next-page">Sonraki ›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seçim Çubuğu -->
+  <div id="selection-bar">
+    <span id="selection-count"></span>
+    <button class="btn-bar-clear" onclick="clearSelection()">Seçimi Temizle</button>
+    <button class="btn-bar-delete" onclick="bulkDelete()">Seçilenleri Sil</button>
+  </div>
+
+  <!-- Excel Import Modalı -->
+  <div class="modal-backdrop" id="import-modal">
+    <div class="modal" style="width:480px">
+      <div class="modal-title">Excel'den İçe Aktar</div>
+
+      <!-- 1. Dosya seçimi -->
+      <div id="import-upload-area">
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-icon">📂</div>
+          <div>Dosyayı buraya sürükleyin veya tıklayın</div>
+          <div class="drop-hint">Yalnızca .xlsx — A: Sicil No, B: Adres</div>
+        </div>
+        <div style="text-align:right;margin-top:-8px;margin-bottom:12px">
+          <a href="/employees/sample-excel/" download style="font-size:0.78rem;color:#7c8cf8;text-decoration:none">⬇ Örnek dosyayı indir</a>
+        </div>
+        <input type="file" id="import-file-input" accept=".xlsx" style="display:none">
+        <div class="error-box" id="import-error" style="display:none"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="import-cancel">İptal</button>
+          <button class="btn-save" id="import-start" disabled>İçe Aktar</button>
+        </div>
+      </div>
+
+      <!-- 2. Çakışma çözümü -->
+      <div id="import-conflict-area" style="display:none">
+        <div style="background:#1a1400;border:1px solid #5a4a00;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+          <div style="font-size:0.9rem;color:#f0c040;font-weight:600;margin-bottom:6px">⚠ Çakışan kayıtlar bulundu</div>
+          <div style="font-size:0.82rem;color:#b0a060">
+            Dosyada <strong id="parsed-count-conflict" style="color:#f0c040"></strong> satır okundu.
+            Bunların <strong id="conflict-count" style="color:#f0c040"></strong> tanesi sistemde zaten kayıtlı.
+          </div>
+          <div id="conflict-codes" style="font-size:0.76rem;color:#888;margin-top:6px;max-height:80px;overflow-y:auto"></div>
+        </div>
+        <div style="font-size:0.84rem;color:#888;margin-bottom:14px">Bu çalışanlar için ne yapılsın?</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn-save" id="conflict-keep">Var olanları koru — sadece yeni kayıtları ekle</button>
+          <button class="btn-secondary" id="conflict-retara">Yeniden tara — hepsini tekrar geocode et</button>
+        </div>
+        <div class="modal-actions" style="margin-top:14px">
+          <button class="btn-cancel" id="conflict-cancel">İptal</button>
+        </div>
+      </div>
+
+      <!-- 3. İşleniyor -->
+      <div id="import-progress-area" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:0.85rem;color:#b0b8ff">İşleniyor… <span id="prog-parsed" style="color:#555;font-size:0.78rem"></span></span>
+          <span style="font-size:0.82rem;color:#666" id="prog-label">0 / 0</span>
+        </div>
+        <div style="background:#0f0f1a;border-radius:6px;height:8px;overflow:hidden;margin-bottom:16px">
+          <div id="prog-bar" style="height:100%;width:0%;background:#7c8cf8;border-radius:6px;transition:width 0.3s"></div>
+        </div>
+        <div class="result-stats">
+          <div class="stat"><div class="stat-num ok" id="prog-ok">0</div><div class="stat-label">Başarılı</div></div>
+          <div class="stat"><div class="stat-num fail" id="prog-fail">0</div><div class="stat-label">Hatalı</div></div>
+          <div class="stat"><div class="stat-num skip" id="prog-skip">0</div><div class="stat-label">Atlandı</div></div>
+        </div>
+        <div id="import-log" style="margin-top:14px;background:#080810;border:1px solid #1e1e38;border-radius:6px;max-height:180px;overflow-y:auto;font-size:0.74rem;font-family:monospace;padding:8px 10px"></div>
+        <div class="modal-actions" style="margin-top:12px">
+          <button class="btn-cancel" id="import-bg-btn">Arka Planda Devam Et</button>
+        </div>
+      </div>
+
+      <!-- 3. Tamamlandı -->
+      <div id="import-result" style="display:none">
+        <div style="font-size:0.82rem;color:#666;margin-bottom:12px" id="res-title"></div>
+        <div class="result-stats">
+          <div class="stat"><div class="stat-num ok" id="res-ok">0</div><div class="stat-label">Başarılı</div></div>
+          <div class="stat"><div class="stat-num fail" id="res-fail">0</div><div class="stat-label">Hatalı</div></div>
+          <div class="stat"><div class="stat-num skip" id="res-skip">0</div><div class="stat-label">Atlandı</div></div>
+        </div>
+        <div class="error-list" id="res-errors" style="display:none;margin-top:12px"></div>
+        <div class="modal-actions" style="margin-top:14px">
+          <button class="btn-primary" id="import-again">Yeni Dosya</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Düzenle Modalı -->
+  <div class="modal-backdrop" id="edit-modal">
+    <div class="modal">
+      <div class="modal-title">Konum Düzenle — <span id="edit-emp-code"></span></div>
+      <div class="error-box" id="edit-error" style="display:none"></div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-etab="eaddress">Adresle</button>
+        <button class="tab-btn" data-etab="ecoords">Koordinatla</button>
+        <button class="tab-btn" data-etab="edrag">Haritadan</button>
+      </div>
+
+      <!-- Sekme 1: Adres -->
+      <div class="tab-panel active" id="etab-eaddress">
+        <div class="field-wrap">
+          <div class="field-label">Yeni Adres</div>
+          <textarea class="field-input" id="edit-address" rows="3" placeholder="Mahalle, ilçe, şehir..."></textarea>
+        </div>
+        <button class="btn-preview" id="edit-preview-btn">Konumu Önizle</button>
+      </div>
+
+      <!-- Sekme 2: Koordinat -->
+      <div class="tab-panel" id="etab-ecoords">
+        <div class="coords-row">
+          <div class="field-wrap">
+            <div class="field-label">Enlem (Lat)</div>
+            <input type="number" class="field-input" id="edit-lat" placeholder="40.12345" step="any">
+          </div>
+          <div class="field-wrap">
+            <div class="field-label">Boylam (Lng)</div>
+            <input type="number" class="field-input" id="edit-lng" placeholder="29.12345" step="any">
+          </div>
+        </div>
+        <button class="btn-preview" id="edit-coords-preview-btn">Haritada Göster</button>
+      </div>
+
+      <!-- Sekme 3: Sürükle-Bırak -->
+      <div class="tab-panel" id="etab-edrag">
+        <div class="field-label" style="margin-bottom:8px">Marker'ı sürükleyerek konumu ayarlayın</div>
+        <div id="edit-drag-map" style="width:100%;height:240px;border-radius:8px;border:1px solid #2a2a4a;margin-bottom:10px"></div>
+        <div class="preview-coords" id="edit-drag-coords" style="color:#888;font-size:0.8rem;margin-bottom:10px"></div>
+        <button class="btn-preview" id="edit-drag-confirm-btn">Konumu Onayla</button>
+        <div id="edit-drag-confirmed" style="display:none;background:#0f2a1a;border:1px solid #2a5a3a;border-radius:6px;padding:8px 12px;font-size:0.8rem;color:#4cde8a;margin-top:10px"></div>
+      </div>
+
+      <!-- Ortak önizleme (sekme 1 ve 2 için) -->
+      <div class="preview-box" id="edit-preview-box" style="display:none">
+        <div id="edit-preview-map" style="width:100%;height:240px;border-radius:8px;border:1px solid #2a2a4a;margin-bottom:10px"></div>
+        <div class="preview-label">Eşleşen Adres</div>
+        <div class="preview-addr" id="edit-preview-addr"></div>
+        <div class="preview-coords" id="edit-preview-coords"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="edit-cancel">İptal</button>
+        <button class="btn-save" id="edit-save" disabled>Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yeni Çalışan Ekle Modalı -->
+  <div class="modal-backdrop" id="add-modal">
+    <div class="modal">
+      <div class="modal-title">Yeni Çalışan Ekle</div>
+      <div class="error-box" id="add-error" style="display:none"></div>
+
+      <div class="field-wrap">
+        <div class="field-label">Personel Kodu</div>
+        <input type="text" class="field-input" id="add-code" placeholder="örn. W2AM">
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="address">Adresle</button>
+        <button class="tab-btn" data-tab="coords">Koordinatla</button>
+      </div>
+
+      <!-- Sekme 1: Adres -->
+      <div class="tab-panel active" id="tab-address">
+        <div class="field-wrap">
+          <div class="field-label">Adres</div>
+          <textarea class="field-input" id="add-address" rows="3" placeholder="Mahalle, ilçe, şehir..."></textarea>
+        </div>
+        <button class="btn-preview" id="add-preview-btn">Konumu Önizle</button>
+      </div>
+
+      <!-- Sekme 2: Koordinat -->
+      <div class="tab-panel" id="tab-coords">
+        <div class="coords-row">
+          <div class="field-wrap">
+            <div class="field-label">Enlem (Lat)</div>
+            <input type="number" class="field-input" id="add-lat" placeholder="40.12345" step="any">
+          </div>
+          <div class="field-wrap">
+            <div class="field-label">Boylam (Lng)</div>
+            <input type="number" class="field-input" id="add-lng" placeholder="29.12345" step="any">
+          </div>
+        </div>
+        <button class="btn-preview" id="coords-preview-btn">Haritada Göster</button>
+      </div>
+
+      <!-- Ortak önizleme -->
+      <div class="preview-box" id="add-preview-box" style="display:none">
+        <div id="add-preview-map"></div>
+        <div class="preview-label">Konum</div>
+        <div class="preview-addr" id="add-preview-addr"></div>
+        <div class="preview-coords" id="add-preview-coords"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="add-cancel">İptal</button>
+        <button class="btn-save" id="add-save" disabled>Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allEmployees = [];
+    let selectedIds = new Set();
+    let lastFiltered = [];
+    let currentPage = 1;
+    const PAGE_SIZE = 25;
+    let addPreviewData = null;
+    let previewMap = null;
+    let previewMarker = null;
+
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? v.pop() : '';
+    }
+
+    // --- Tablo ---
+
+    async function loadEmployees() {
+      const tbody = document.getElementById('employee-tbody');
+      try {
+        const res = await fetch('/api/employees/?all=1');
+        const data = await res.json();
+        allEmployees = data.results ?? data;
+        document.getElementById('total-count').textContent = allEmployees.length;
+        applyFiltersAndSort();
+        updateSelectionBar();
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#e05a5a;padding:32px">Veriler yüklenemedi.</td></tr>';
+      }
+    }
+
+    function scoreCell(score) {
+      if (score === null || score === undefined) return '<span style="color:#444">—</span>';
+      const pct = Math.round(score * 100);
+      let color, bg;
+      if (score >= 0.75)      { color = '#4cde8a'; bg = '#0f3020'; }
+      else if (score >= 0.5)  { color = '#f0a030'; bg = '#2a1a00'; }
+      else                    { color = '#e05a5a'; bg = '#2e1010'; }
+      return `<span class="badge" style="background:${bg};color:${color}" title="Token örtüşmesi + string benzerliği ağırlıklı ortalama">%${pct}</span>`;
+    }
+
+    function renderTable(employees) {
+      const tbody = document.getElementById('employee-tbody');
+      if (!employees.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#555;padding:32px">Kayıt bulunamadı.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = employees.map(emp => {
+        const badge = emp.geocode_status === 'ok'
+          ? '<span class="badge badge-ok">Tamam</span>'
+          : emp.geocode_status === 'failed'
+          ? '<span class="badge badge-fail">Hatalı</span>'
+          : '<span class="badge badge-pend">Bekliyor</span>';
+
+        const ops = emp.workspace_names && emp.workspace_names.length
+          ? emp.workspace_names.map(n => `<span class="op-tag">${n}</span>`).join(' ')
+          : '<span style="color:#444">—</span>';
+
+        const addr = emp.address ? emp.address.replace(/"/g, '&quot;') : '';
+        const apiAddr = emp.api_address ? emp.api_address.replace(/"/g, '&quot;') : '';
+
+        const checked = selectedIds.has(emp.id) ? 'checked' : '';
+        return `<tr class="${selectedIds.has(emp.id) ? 'selected' : ''}">
+          <td style="text-align:center"><input type="checkbox" class="row-check" data-id="${emp.id}" ${checked}></td>
+          <td>${emp.personnel_code}</td>
+          <td class="td-clip" title="${addr}">${emp.address || '—'}</td>
+          <td class="td-clip td-dim" title="${apiAddr}">${emp.api_address || '—'}</td>
+          <td>${ops}</td>
+          <td>${scoreCell(emp.address_score)}</td>
+          <td>${badge}</td>
+          <td>
+            <button class="btn-edit" onclick="openEditModal(${emp.id})">Düzenle</button>
+            <button class="btn-delete" onclick="deleteEmployee(${emp.id}, '${emp.personnel_code.replace(/'/g, "\\'")}')">Sil</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // --- Seçim ---
+    function updateSelectionBar() {
+      const bar = document.getElementById('selection-bar');
+      const n = selectedIds.size;
+      if (n > 0) {
+        document.getElementById('selection-count').textContent = n + ' çalışan seçildi';
+        bar.classList.add('open');
+      } else {
+        bar.classList.remove('open');
+      }
+    }
+
+    function clearSelection() {
+      selectedIds.clear();
+      document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+      document.querySelectorAll('tbody tr').forEach(tr => tr.classList.remove('selected'));
+      const ca = document.getElementById('check-all');
+      if (ca) ca.checked = false;
+      updateSelectionBar();
+    }
+
+    async function bulkDelete() {
+      const n = selectedIds.size;
+      if (!n) return;
+      if (!confirm(`${n} çalışanı silmek istediğinize emin misiniz?\nBu işlem geri alınamaz.`)) return;
+      const ids = [...selectedIds];
+      let failed = 0;
+      for (const id of ids) {
+        try {
+          const resp = await fetch(`/api/employees/${id}/`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          });
+          if (!resp.ok && resp.status !== 204) failed++;
+        } catch { failed++; }
+      }
+      selectedIds.clear();
+      await loadEmployees();
+      if (failed) alert(`${failed} kayıt silinemedi.`);
+    }
+
+    // Checkbox event delegation
+    document.getElementById('employee-tbody').addEventListener('change', function (e) {
+      if (!e.target.classList.contains('row-check')) return;
+      const id = parseInt(e.target.dataset.id);
+      const tr = e.target.closest('tr');
+      if (e.target.checked) { selectedIds.add(id); tr.classList.add('selected'); }
+      else                   { selectedIds.delete(id); tr.classList.remove('selected'); }
+      // select-all güncelle
+      const allBoxes = document.querySelectorAll('.row-check');
+      const checkedBoxes = document.querySelectorAll('.row-check:checked');
+      const ca = document.getElementById('check-all');
+      if (ca) ca.checked = allBoxes.length > 0 && checkedBoxes.length === allBoxes.length;
+      updateSelectionBar();
+    });
+
+    document.getElementById('check-all').addEventListener('change', function () {
+      document.querySelectorAll('.row-check').forEach(cb => {
+        cb.checked = this.checked;
+        const id = parseInt(cb.dataset.id);
+        const tr = cb.closest('tr');
+        if (this.checked) { selectedIds.add(id); tr.classList.add('selected'); }
+        else              { selectedIds.delete(id); tr.classList.remove('selected'); }
+      });
+      updateSelectionBar();
+    });
+
+    // --- Sıralama & Filtreleme ---
+    let sortCol = null, sortDir = 1;
+    let filters = { code: '', address: '', api: '', ops: '', score: '', status: '' };
+
+    function getSortVal(emp, col) {
+      switch (col) {
+        case 'code':    return emp.personnel_code || '';
+        case 'address': return emp.address || '';
+        case 'apiAddr': return emp.api_address || '';
+        case 'ops':     return (emp.workspace_names || []).join(',');
+        case 'score':   return emp.address_score ?? -1;
+        case 'status':  return emp.geocode_status || '';
+        default: return '';
+      }
+    }
+
+    function applyFiltersAndSort() {
+      let result = allEmployees.filter(emp => {
+        if (filters.code    && !emp.personnel_code.toLowerCase().includes(filters.code)) return false;
+        if (filters.address && !(emp.address || '').toLowerCase().includes(filters.address)) return false;
+        if (filters.api     && !(emp.api_address || '').toLowerCase().includes(filters.api)) return false;
+        if (filters.ops     && !(emp.workspace_names || []).some(n => n.toLowerCase().includes(filters.ops))) return false;
+        if (filters.status  && emp.geocode_status !== filters.status) return false;
+        if (filters.score) {
+          const s = emp.address_score;
+          if (filters.score === 'high' && (s === null || s < 0.75)) return false;
+          if (filters.score === 'mid'  && (s === null || s < 0.5 || s >= 0.75)) return false;
+          if (filters.score === 'low'  && (s === null || s >= 0.5)) return false;
+          if (filters.score === 'none' && s !== null) return false;
+        }
+        return true;
+      });
+      if (sortCol) {
+        result = [...result].sort((a, b) => {
+          const va = getSortVal(a, sortCol), vb = getSortVal(b, sortCol);
+          return va < vb ? -sortDir : va > vb ? sortDir : 0;
+        });
+      }
+      lastFiltered = result;
+      currentPage = 1;
+      renderCurrentPage();
+    }
+
+    function renderCurrentPage() {
+      const total = lastFiltered.length;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      currentPage = Math.min(currentPage, totalPages);
+      const start = (currentPage - 1) * PAGE_SIZE;
+      renderTable(lastFiltered.slice(start, start + PAGE_SIZE));
+
+      const pag = document.getElementById('pagination');
+      if (total > 0) {
+        const end = Math.min(start + PAGE_SIZE, total);
+        document.getElementById('page-info').textContent =
+          (start + 1) + '–' + end + ' / ' + total + ' sonuç';
+        document.getElementById('page-num').textContent =
+          'Sayfa ' + currentPage + ' / ' + totalPages;
+        document.getElementById('prev-page').disabled = currentPage === 1;
+        document.getElementById('next-page').disabled = currentPage === totalPages;
+        pag.style.display = 'flex';
+      } else {
+        pag.style.display = 'none';
+      }
+    }
+
+    // Sıralama: başlık tıklamaları
+    document.querySelectorAll('thead th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (sortCol === col) {
+          sortDir = sortDir === 1 ? -1 : 1;
+        } else {
+          sortCol = col;
+          sortDir = 1;
+        }
+        document.querySelectorAll('thead th[data-sort]').forEach(t => {
+          t.classList.remove('sort-asc', 'sort-desc');
+          t.querySelector('.sort-icon').textContent = '⇅';
+        });
+        th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+        th.querySelector('.sort-icon').textContent = sortDir === 1 ? '▲' : '▼';
+        applyFiltersAndSort();
+      });
+    });
+
+    document.getElementById('prev-page').addEventListener('click', () => { currentPage--; renderCurrentPage(); });
+    document.getElementById('next-page').addEventListener('click', () => { currentPage++; renderCurrentPage(); });
+
+    // Kolon filtreleri
+    document.getElementById('f-code').addEventListener('input',    e => { filters.code    = e.target.value.toLowerCase(); applyFiltersAndSort(); });
+    document.getElementById('f-address').addEventListener('input', e => { filters.address = e.target.value.toLowerCase(); applyFiltersAndSort(); });
+    document.getElementById('f-api').addEventListener('input',     e => { filters.api     = e.target.value.toLowerCase(); applyFiltersAndSort(); });
+    document.getElementById('f-ops').addEventListener('input',     e => { filters.ops     = e.target.value.toLowerCase(); applyFiltersAndSort(); });
+    document.getElementById('f-score').addEventListener('change',  e => { filters.score   = e.target.value;               applyFiltersAndSort(); });
+    document.getElementById('f-status').addEventListener('change', e => { filters.status  = e.target.value;               applyFiltersAndSort(); });
+
+
+    // Tümünü Sil
+    async function deleteAllEmployees() {
+      const n = allEmployees.length;
+      if (!n) { alert('Silinecek çalışan yok.'); return; }
+      if (!confirm(`Tüm ${n} çalışanı silmek istediğinize emin misiniz?\nBu işlem geri alınamaz.`)) return;
+      const ids = allEmployees.map(e => e.id);
+      let failed = 0;
+      for (const id of ids) {
+        try {
+          const resp = await fetch(`/api/employees/${id}/`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          });
+          if (!resp.ok && resp.status !== 204) failed++;
+        } catch { failed++; }
+      }
+      selectedIds.clear();
+      await loadEmployees();
+      if (failed) alert(`${failed} kayıt silinemedi.`);
+    }
+
+    document.getElementById('delete-all-btn').addEventListener('click', deleteAllEmployees);
+
+    // Sil
+    async function deleteEmployee(id, code) {
+      if (!confirm(`"${code}" çalışanını silmek istediğinize emin misiniz?\nBu işlem geri alınamaz.`)) return;
+      try {
+        const resp = await fetch(`/api/employees/${id}/`, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
+        if (resp.ok || resp.status === 204) {
+          await loadEmployees();
+        } else {
+          alert('Silme işlemi başarısız.');
+        }
+      } catch (err) {
+        alert('Bağlantı hatası: ' + err.message);
+      }
+    }
+
+    // --- Düzenle ---
+    let editEmpId = null;
+    let editPreviewData = null;
+    let editPreviewMap = null;
+    let editPreviewMarker = null;
+    let editDragMap = null;
+    let editDragMarker = null;
+    let activeETab = 'eaddress';
+
+    function switchETab(tab) {
+      activeETab = tab;
+      document.querySelectorAll('.tab-btn[data-etab]').forEach(b => b.classList.toggle('active', b.dataset.etab === tab));
+      document.querySelectorAll('[id^="etab-"]').forEach(p => p.classList.toggle('active', p.id === 'etab-' + tab));
+      document.getElementById('edit-preview-box').style.display = 'none';
+      document.getElementById('edit-save').disabled = true;
+      if (tab === 'edrag') document.getElementById('edit-drag-confirmed').style.display = 'none';
+      document.getElementById('edit-error').style.display = 'none';
+      editPreviewData = null;
+      if (tab === 'edrag') initDragMap();
+    }
+
+    document.querySelectorAll('#edit-modal .tab-btn[data-etab]').forEach(btn => {
+      btn.addEventListener('click', () => switchETab(btn.dataset.etab));
+    });
+
+    function showEditPreviewOnMap(lat, lng, label) {
+      document.getElementById('edit-preview-addr').textContent = label;
+      document.getElementById('edit-preview-coords').textContent = 'Koordinat: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+      document.getElementById('edit-preview-box').style.display = 'block';
+      setTimeout(() => {
+        if (!editPreviewMap) {
+          editPreviewMap = L.map('edit-preview-map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editPreviewMap);
+        } else {
+          editPreviewMap.invalidateSize();
+          editPreviewMap.setView([lat, lng], 15);
+        }
+        if (editPreviewMarker) editPreviewMap.removeLayer(editPreviewMarker);
+        editPreviewMarker = L.marker([lat, lng]).addTo(editPreviewMap).bindPopup(label).openPopup();
+      }, 150);
+    }
+
+    function initDragMap() {
+      const emp = allEmployees.find(e => e.id === editEmpId);
+      const lat = emp && emp.lat ? emp.lat : 40.1826;
+      const lng = emp && emp.lng ? emp.lng : 29.0665;
+      setTimeout(() => {
+        if (!editDragMap) {
+          editDragMap = L.map('edit-drag-map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editDragMap);
+        } else {
+          editDragMap.invalidateSize();
+          editDragMap.setView([lat, lng], 15);
+        }
+        if (editDragMarker) editDragMap.removeLayer(editDragMarker);
+        editDragMarker = L.marker([lat, lng], { draggable: true }).addTo(editDragMap);
+        document.getElementById('edit-drag-coords').textContent = 'Koordinat: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+        editDragMarker.on('dragend', function () {
+          const pos = editDragMarker.getLatLng();
+          document.getElementById('edit-drag-coords').textContent = 'Koordinat: ' + pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+        });
+      }, 150);
+    }
+
+    function openEditModal(id) {
+      editEmpId = id;
+      editPreviewData = null;
+      const emp = allEmployees.find(e => e.id === id);
+      document.getElementById('edit-emp-code').textContent = emp ? emp.personnel_code : '';
+      document.getElementById('edit-address').value = emp ? (emp.address || '') : '';
+      document.getElementById('edit-lat').value = emp && emp.lat ? emp.lat : '';
+      document.getElementById('edit-lng').value = emp && emp.lng ? emp.lng : '';
+      document.getElementById('edit-error').style.display = 'none';
+      document.getElementById('edit-preview-box').style.display = 'none';
+      document.getElementById('edit-save').disabled = true;
+      switchETab('eaddress');
+      document.getElementById('edit-modal').classList.add('open');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.remove('open');
+      editEmpId = null;
+      editPreviewData = null;
+    }
+
+    document.getElementById('edit-drag-confirm-btn').addEventListener('click', function () {
+      if (!editDragMarker) return;
+      const pos = editDragMarker.getLatLng();
+      document.getElementById('edit-drag-confirmed').textContent =
+        'Onaylanan konum: ' + pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+      document.getElementById('edit-drag-confirmed').style.display = 'block';
+      document.getElementById('edit-save').disabled = false;
+    });
+
+    document.getElementById('edit-cancel').addEventListener('click', closeEditModal);
+    document.getElementById('edit-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeEditModal();
+    });
+
+    // Adres önizle
+    document.getElementById('edit-preview-btn').addEventListener('click', async function () {
+      const address = document.getElementById('edit-address').value.trim();
+      const errEl = document.getElementById('edit-error');
+      errEl.style.display = 'none';
+      document.getElementById('edit-preview-box').style.display = 'none';
+      document.getElementById('edit-save').disabled = true;
+      editPreviewData = null;
+
+      if (!address) { errEl.textContent = 'Adres boş olamaz.'; errEl.style.display = 'block'; return; }
+
+      this.disabled = true; this.textContent = 'Konumlanıyor…';
+      try {
+        const resp = await fetch('/api/employees/geocode/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ address }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { errEl.textContent = data.error || 'Geocode hatası.'; errEl.style.display = 'block'; return; }
+        editPreviewData = { lat: data.lat, lng: data.lng, api_address: data.api_address, address };
+        showEditPreviewOnMap(data.lat, data.lng, data.api_address);
+        document.getElementById('edit-save').disabled = false;
+      } catch (err) {
+        errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+      } finally {
+        this.disabled = false; this.textContent = 'Konumu Önizle';
+      }
+    });
+
+    // Koordinat önizle
+    document.getElementById('edit-coords-preview-btn').addEventListener('click', function () {
+      const lat = parseFloat(document.getElementById('edit-lat').value);
+      const lng = parseFloat(document.getElementById('edit-lng').value);
+      const errEl = document.getElementById('edit-error');
+      errEl.style.display = 'none';
+      if (isNaN(lat) || isNaN(lng)) { errEl.textContent = 'Geçerli koordinat girin.'; errEl.style.display = 'block'; return; }
+      editPreviewData = { lat, lng, api_address: '', address: lat.toFixed(5) + ', ' + lng.toFixed(5) };
+      showEditPreviewOnMap(lat, lng, lat.toFixed(5) + ', ' + lng.toFixed(5));
+      document.getElementById('edit-save').disabled = false;
+    });
+
+    // Kaydet
+    document.getElementById('edit-save').addEventListener('click', async function () {
+      const errEl = document.getElementById('edit-error');
+      errEl.style.display = 'none';
+      let body = {};
+
+      if (activeETab === 'edrag') {
+        if (!editDragMarker) return;
+        const pos = editDragMarker.getLatLng();
+        body = { lat: pos.lat, lng: pos.lng };
+      } else {
+        if (!editPreviewData) return;
+        body = { lat: editPreviewData.lat, lng: editPreviewData.lng, address: editPreviewData.address, api_address: editPreviewData.api_address };
+      }
+
+      this.disabled = true; this.textContent = 'Kaydediliyor…';
+      try {
+        const resp = await fetch(`/api/employees/${editEmpId}/update-location/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { errEl.textContent = data.error || 'Kayıt hatası.'; errEl.style.display = 'block'; this.disabled = false; this.textContent = 'Kaydet'; return; }
+        closeEditModal();
+        await loadEmployees();
+      } catch (err) {
+        errEl.textContent = 'Bağlantı hatası: ' + err.message; errEl.style.display = 'block';
+        this.disabled = false; this.textContent = 'Kaydet';
+      }
+    });
+
+    // --- Yeni Çalışan Ekle ---
+
+    let activeTab = 'address';
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('#add-modal .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      document.querySelectorAll('#add-modal .tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+      document.getElementById('add-preview-box').style.display = 'none';
+      document.getElementById('add-save').disabled = true;
+      document.getElementById('add-error').style.display = 'none';
+      addPreviewData = null;
+    }
+
+    document.querySelectorAll('#add-modal .tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    function showPreviewOnMap(lat, lng, label) {
+      document.getElementById('add-preview-addr').textContent = label;
+      document.getElementById('add-preview-coords').textContent = 'Koordinat: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+      document.getElementById('add-preview-box').style.display = 'block';
+      setTimeout(() => {
+        if (!previewMap) {
+          previewMap = L.map('add-preview-map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(previewMap);
+        } else {
+          previewMap.invalidateSize();
+          previewMap.setView([lat, lng], 15);
+        }
+        if (previewMarker) previewMap.removeLayer(previewMarker);
+        previewMarker = L.marker([lat, lng]).addTo(previewMap).bindPopup(label).openPopup();
+      }, 150);
+    }
+
+    function openAddModal() {
+      document.getElementById('add-code').value = '';
+      document.getElementById('add-address').value = '';
+      document.getElementById('add-lat').value = '';
+      document.getElementById('add-lng').value = '';
+      document.getElementById('add-error').style.display = 'none';
+      document.getElementById('add-preview-box').style.display = 'none';
+      document.getElementById('add-save').disabled = true;
+      addPreviewData = null;
+      switchTab('address');
+      document.getElementById('add-modal').classList.add('open');
+      document.getElementById('add-code').focus();
+    }
+
+    function closeAddModal() {
+      document.getElementById('add-modal').classList.remove('open');
+      addPreviewData = null;
+    }
+
+    document.getElementById('open-add-modal').addEventListener('click', openAddModal);
+    document.getElementById('add-cancel').addEventListener('click', closeAddModal);
+    document.getElementById('add-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeAddModal();
+    });
+
+    // Koordinat önizleme
+    document.getElementById('coords-preview-btn').addEventListener('click', function () {
+      const lat = parseFloat(document.getElementById('add-lat').value);
+      const lng = parseFloat(document.getElementById('add-lng').value);
+      const errEl = document.getElementById('add-error');
+      errEl.style.display = 'none';
+
+      if (isNaN(lat) || isNaN(lng)) {
+        errEl.textContent = 'Geçerli bir enlem ve boylam girin.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        errEl.textContent = 'Koordinat değerleri geçerli aralıkta değil.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      addPreviewData = { lat, lng, api_address: '' };
+      showPreviewOnMap(lat, lng, lat.toFixed(5) + ', ' + lng.toFixed(5));
+      document.getElementById('add-save').disabled = false;
+    });
+
+    document.getElementById('add-preview-btn').addEventListener('click', async function () {
+      const address = document.getElementById('add-address').value.trim();
+      const errEl = document.getElementById('add-error');
+      const previewBox = document.getElementById('add-preview-box');
+      const saveBtn = document.getElementById('add-save');
+
+      errEl.style.display = 'none';
+      previewBox.style.display = 'none';
+      saveBtn.disabled = true;
+      addPreviewData = null;
+
+      if (!address) {
+        errEl.textContent = 'Adres alanı boş olamaz.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      this.disabled = true;
+      this.textContent = 'Konumlanıyor…';
+
+      try {
+        const resp = await fetch('/api/employees/geocode/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ address }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          errEl.textContent = data.error || 'Geocode hatası.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        addPreviewData = { lat: data.lat, lng: data.lng, api_address: data.api_address };
+        showPreviewOnMap(data.lat, data.lng, data.api_address);
+        saveBtn.disabled = false;
+
+      } catch (err) {
+        errEl.textContent = 'Bağlantı hatası: ' + err.message;
+        errEl.style.display = 'block';
+      } finally {
+        this.disabled = false;
+        this.textContent = 'Konumu Önizle';
+      }
+    });
+
+    document.getElementById('add-save').addEventListener('click', async function () {
+      const code = document.getElementById('add-code').value.trim();
+      const errEl = document.getElementById('add-error');
+
+      if (!code) {
+        errEl.textContent = 'Personel kodu boş olamaz.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      this.disabled = true;
+      this.textContent = 'Kaydediliyor…';
+
+      try {
+        const address = activeTab === 'address'
+          ? document.getElementById('add-address').value.trim()
+          : (addPreviewData.lat.toFixed(5) + ', ' + addPreviewData.lng.toFixed(5));
+
+        const resp = await fetch('/api/employees/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            personnel_code: code,
+            address: address,
+            api_address: addPreviewData.api_address || '',
+            lat: addPreviewData.lat,
+            lng: addPreviewData.lng,
+            geocode_status: 'ok',
+          }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          const msg = data.personnel_code ? data.personnel_code[0] : (data.error || JSON.stringify(data));
+          errEl.textContent = msg;
+          errEl.style.display = 'block';
+          this.disabled = false;
+          this.textContent = 'Kaydet';
+          return;
+        }
+
+        closeAddModal();
+        await loadEmployees();
+
+      } catch (err) {
+        errEl.textContent = 'Bağlantı hatası: ' + err.message;
+        errEl.style.display = 'block';
+        this.disabled = false;
+        this.textContent = 'Kaydet';
+      }
+    });
+
+    // --- Excel Import ---
+
+    let selectedFile = null;
+    let importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+
+    function showImportSection(name) {
+      ['import-upload-area', 'import-conflict-area', 'import-progress-area', 'import-result'].forEach(id => {
+        document.getElementById(id).style.display = id === name ? 'block' : 'none';
+      });
+    }
+
+    function updateProgressUI() {
+      const { total, done, ok, failed, skipped } = importState;
+      const pct = total ? Math.round(done / total * 100) : 0;
+      document.getElementById('prog-label').textContent = done + ' / ' + total;
+      document.getElementById('prog-bar').style.width = pct + '%';
+      document.getElementById('prog-ok').textContent = ok;
+      document.getElementById('prog-fail').textContent = failed;
+      document.getElementById('prog-skip').textContent = skipped;
+    }
+
+    function showResult() {
+      const { total, ok, failed, skipped, errors } = importState;
+      document.getElementById('res-title').textContent =
+        'Son import: ' + total + ' satır işlendi.';
+      document.getElementById('res-ok').textContent = ok;
+      document.getElementById('res-fail').textContent = failed;
+      document.getElementById('res-skip').textContent = skipped;
+      const errList = document.getElementById('res-errors');
+      if (errors.length) {
+        errList.innerHTML = errors.slice(0, 20).map(e => `<div>${e.code} — ${e.reason}</div>`).join('');
+        errList.style.display = 'block';
+      } else {
+        errList.style.display = 'none';
+      }
+      showImportSection('import-result');
+    }
+
+    function appendLog(color, text) {
+      const log = document.getElementById('import-log');
+      if (!log) return;
+      const line = document.createElement('div');
+      line.style.color = color;
+      line.style.borderBottom = '1px solid #12122a';
+      line.style.padding = '2px 0';
+      line.textContent = text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function runImport(rows, force = false) {
+      importState = { running: true, total: rows.length, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+      showImportSection('import-progress-area');
+      document.getElementById('import-log').innerHTML = '';
+      const parsedEl = document.getElementById('prog-parsed');
+      if (parsedEl) parsedEl.textContent = '(' + rows.length + ' satır okundu)';
+      updateProgressUI();
+
+      for (const row of rows) {
+        appendLog('#555', '[' + importState.done + '/' + rows.length + '] ' + row.code + ' → ' + row.address);
+        try {
+          const t0 = Date.now();
+          const resp = await fetch('/api/employees/import-row/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ code: row.code, address: row.address, force }),
+          });
+          const data = await resp.json();
+          const ms = Date.now() - t0;
+          importState.done++;
+          if (data.status === 'ok') {
+            importState.ok++;
+            appendLog('#4cde8a', '  ✓ ok  (' + ms + 'ms)' + (data.api_address ? '  →  ' + data.api_address : ''));
+          } else if (data.status === 'skipped') {
+            importState.skipped++;
+            appendLog('#888', '  – atlandı (zaten kayıtlı)');
+          } else {
+            importState.failed++;
+            importState.errors.push({ code: row.code, reason: data.reason || 'hata' });
+            appendLog('#e05a5a', '  ✗ hata: ' + (data.reason || 'bilinmiyor'));
+          }
+        } catch (err) {
+          importState.done++;
+          importState.failed++;
+          importState.errors.push({ code: row.code, reason: 'bağlantı hatası' });
+          appendLog('#e05a5a', '  ✗ bağlantı hatası: ' + err.message);
+        }
+
+        updateProgressUI();
+        // Her 10 kayıtta tabloyu tazele
+        if (importState.done % 10 === 0) loadEmployees();
+        // Yandex rate limit ve sunucu yükü için bekleme
+        await new Promise(r => setTimeout(r, 180));
+      }
+
+      importState.running = false;
+      await loadEmployees();
+      if (document.getElementById('import-modal').classList.contains('open')) {
+        showResult();
+      }
+    }
+
+    function openImportModal() {
+      if (importState.running) {
+        // İşlem devam ediyor — progress göster
+        showImportSection('import-progress-area');
+        updateProgressUI();
+      } else if (importState.total > 0 && !importState.running) {
+        // Tamamlandı — özet göster
+        showResult();
+      } else {
+        // Başlangıç
+        selectedFile = null;
+        document.getElementById('import-file-input').value = '';
+        document.getElementById('drop-zone').innerHTML = '<div class="drop-icon">📂</div><div>Dosyayı buraya sürükleyin veya tıklayın</div><div class="drop-hint">Yalnızca .xlsx — A: Sicil No, B: Adres</div>';
+        document.getElementById('import-error').style.display = 'none';
+        document.getElementById('import-start').disabled = true;
+        showImportSection('import-upload-area');
+      }
+      document.getElementById('import-modal').classList.add('open');
+    }
+
+    function closeImportModal() {
+      document.getElementById('import-modal').classList.remove('open');
+    }
+
+    function resetImportToUpload() {
+      importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+      selectedFile = null;
+      document.getElementById('import-file-input').value = '';
+      document.getElementById('drop-zone').innerHTML = '<div class="drop-icon">📂</div><div>Dosyayı buraya sürükleyin veya tıklayın</div><div class="drop-hint">Yalnızca .xlsx — A: Sicil No, B: Adres</div>';
+      document.getElementById('import-error').style.display = 'none';
+      document.getElementById('import-start').disabled = true;
+      showImportSection('import-upload-area');
+    }
+
+    function setImportFile(file) {
+      if (!file) return;
+      if (!file.name.endsWith('.xlsx')) {
+        document.getElementById('import-error').textContent = 'Yalnızca .xlsx dosyaları desteklenir.';
+        document.getElementById('import-error').style.display = 'block';
+        document.getElementById('import-start').disabled = true;
+        return;
+      }
+      selectedFile = file;
+      document.getElementById('import-error').style.display = 'none';
+      document.getElementById('drop-zone').innerHTML =
+        '<div class="drop-icon">✅</div><div style="color:#b0b8ff">' + file.name + '</div><div class="drop-hint">' + (file.size / 1024).toFixed(1) + ' KB</div>';
+      document.getElementById('import-start').disabled = false;
+    }
+
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('click', () => document.getElementById('import-file-input').click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); setImportFile(e.dataTransfer.files[0]); });
+    document.getElementById('import-file-input').addEventListener('change', e => setImportFile(e.target.files[0]));
+
+    document.getElementById('open-import-modal').addEventListener('click', openImportModal);
+    document.getElementById('import-cancel').addEventListener('click', closeImportModal);
+    document.getElementById('import-bg-btn').addEventListener('click', closeImportModal);
+    document.getElementById('import-modal').addEventListener('click', e => { if (e.target === document.getElementById('import-modal')) closeImportModal(); });
+    document.getElementById('import-again').addEventListener('click', resetImportToUpload);
+
+    let parsedRows = [];
+
+    document.getElementById('import-start').addEventListener('click', async function () {
+      if (!selectedFile) return;
+      this.disabled = true;
+      document.getElementById('import-error').style.display = 'none';
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      try {
+        const resp = await fetch('/api/employees/parse-excel/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          document.getElementById('import-error').textContent = data.error || 'Dosya okunamadı.';
+          document.getElementById('import-error').style.display = 'block';
+          this.disabled = false;
+          return;
+        }
+        parsedRows = data.rows;
+        if (parsedRows.length === 0) {
+          document.getElementById('import-error').textContent = 'Dosyada işlenecek satır bulunamadı.';
+          document.getElementById('import-error').style.display = 'block';
+          this.disabled = false;
+          return;
+        }
+        const conflicts = parsedRows.filter(r => r.exists);
+        if (conflicts.length > 0) {
+          document.getElementById('parsed-count-conflict').textContent = parsedRows.length;
+          document.getElementById('conflict-count').textContent = conflicts.length;
+          const codeList = conflicts.slice(0, 30).map(r => r.code).join(', ');
+          document.getElementById('conflict-codes').textContent =
+            codeList + (conflicts.length > 30 ? ` … ve ${conflicts.length - 30} tane daha` : '');
+          showImportSection('import-conflict-area');
+        } else {
+          runImport(parsedRows, false);
+        }
+      } catch (err) {
+        document.getElementById('import-error').textContent = 'Bağlantı hatası: ' + err.message;
+        document.getElementById('import-error').style.display = 'block';
+        this.disabled = false;
+      }
+    });
+
+    document.getElementById('conflict-keep').addEventListener('click', () => {
+      runImport(parsedRows, false);
+    });
+
+    document.getElementById('conflict-retara').addEventListener('click', () => {
+      runImport(parsedRows, true);
+    });
+
+    document.getElementById('conflict-cancel').addEventListener('click', resetImportToUpload);
+
+    // --- Başlangıç ---
+    loadEmployees();
+  </script>
+</body>
+</html>
