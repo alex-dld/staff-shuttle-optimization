@@ -229,6 +229,60 @@ Kırmızı + mor + turuncu toplamda 71 satır Mapbox Geocoding API ile yeniden s
 
 ---
 
+### 21. ORS Routing ve Yandex URL Parser Kaldırıldı — `routes/services.py`, `routes/views.py`
+
+- `get_route_from_ors` fonksiyonu kaldırıldı
+- `parse_yandex_maps_url` kaldırıldı (geçici olarak eklenmişti, tutarsızlık nedeniyle çıkarıldı)
+- `compare-routing` endpoint'i kaldırıldı
+- Sadece Google Maps URL parser + Mapbox routing kaldı
+
+---
+
+### 22. Çalışan Atama Endpoint'leri — `employees/views.py`
+
+Üç yeni action eklendi:
+
+- **`PATCH /api/employees/<id>/update-location/`** — `lat`, `lng`, `address`, `api_address` alanlarını günceller; geocode API çağrısı yapmadan koordinat düzeltmeye olanak tanır
+- **`POST /api/employees/geocode/`** — `address` parametresiyle Yandex API'den koordinat döndürür (kayıt yazmaz), harita UI'daki "adres ara" için kullanılıyor
+- **`POST /api/employees/assign/`** — `workspace` + `employee_ids` alarak workspace'e çalışan kümesi atar
+
+---
+
+### 23. assign-all Endpoint'i — `routes/views.py`
+
+**`POST /api/route-groups/assign-all/`** — bir workspace'teki tüm duraklar için çalışanları otomatik atar.
+
+Üç aşamalı mantık:
+
+1. **İzokron (ORS):** Her durağın 15 dakika yürüme mesafesi poligonu hesaplanır ve cache'lenir (`stop.isochrone`). ORS API'ye 1.5 saniye ara ile istek yapılır; 429 hatasında 5/10 saniye bekleyip yeniden dener.
+2. **Shapely:** Her çalışanın koordinatı Shapely `Point` ile tüm izokron poligonlarında test edilir. Hiçbir izokrona girmeyenler `unreachable` listesine düşer.
+3. **Haversine:** Birden fazla izokrona giren çalışan, Haversine formülüyle en yakın durağa atanır.
+
+Yanıt formatı: rota bazında grup → durak listesi → atanan çalışanlar + `unreachable` listesi + `_debug` sayaçları.
+
+---
+
+### 24. "Hesapla / Hesapla Tümü" Butonları + İzokron Görselleştirme — `templates/routes/map.html`
+
+- **"Hesapla"** butonu her rota kartında: o rotanın durakları için `assign-all` çağrısı yaparak çalışan sayısını durak başlığında gösterir, izokron poligonlarını haritaya çizer
+- **"Hesapla Tümü"** butonu rota listesi başlığında: tüm workspace'in rotaları için aynı işlemi toplu yapar; eksik workspace ID hatası düzeltildi (`workspace_id` artık template'den alınıyor)
+- İzokron poligonları route rengiyle saydam dolgu + kenar çizgisiyle gösterilir; rota gizlenince izokron da kaldırılır
+- Durak kartlarında atanan çalışan sayısı badge olarak görünür
+
+---
+
+### 25. Env Değişkenleri İçin Default Değerler — `core/settings.py`
+
+`ORS_API_KEY`, `YANDEX_API_KEY`, `MAPBOX_API_KEY` tanımlanmamışsa `None` döner (önceden `KeyError` ile boot hatası çıkıyordu).
+
+---
+
+### 26. Route/Group Güncellemeleri Workspace Param Olmadan — `routes/views.py`
+
+`PATCH/DELETE /api/route-groups/<id>/` ve `/api/routes/<id>/` endpoint'leri artık `workspace` query param göndermeden de çalışıyor. Önceki `get_queryset` filtresi `update`/`partial_update`/`destroy` action'larını engelleyerek 404 döndürüyordu; bu action'lar için filtre atlanıyor.
+
+---
+
 ## Bekleyen Görevler
 
 - [ ] **Hatalı adresleri düzelt:** 29 çalışanın geocode işlemi başarısız oldu (`geocode_status=failed`). `Docs/geocode_results.xlsx` dosyasında `STATUS=failed` olan satırları incele, adresleri düzelterek `import_employees` komutunu tekrar çalıştır. Başarısız olan kayıtlar: A44PM, E56PM, I62UB, Q87JM, M111VM, D159ZM, M164CM, L168MB, T180VB, P183CM, Z200QM, G333IM, J339OB, A340GM, O346KM, K359QB, E374EM, S453MB, J466NB, G478SM, F484GM, I269MM, Z305VM, T240BM, H568VM, S577ZM, X512HB, K508MB, U594UB
@@ -256,6 +310,11 @@ Kırmızı + mor + turuncu toplamda 71 satır Mapbox Geocoding API ile yeniden s
 | Çalışan içe aktarma (Yandex geocode) | ✅ Çalışıyor (567/596 başarılı) |
 | Çalışan haritada gösterme | ✅ Çalışıyor |
 | Geocode analiz (renklendirme + Mapbox recheck) | ✅ Tamamlandı |
+| Çalışan konum güncelleme API (`update-location`) | ✅ Çalışıyor |
+| İzokron (ORS) hesaplama + cache | ✅ Çalışıyor |
+| Çalışan-durak otomatik eşleştirme (`assign-all`) | ✅ Çalışıyor |
+| İzokron haritada görselleştirme | ✅ Çalışıyor |
+| Durak yoğunluğu (Hesapla / Hesapla Tümü) | ✅ Çalışıyor |
 | Hatalı adres düzeltme (25 kayıt — manuel) | ⚠️ Bekliyor |
 | Koordinat girerek çalışan ekleme | ⏳ Geliştirilmedi |
 | Haritadan sürükle-bırak konum güncelleme | ⏳ Geliştirilmedi |

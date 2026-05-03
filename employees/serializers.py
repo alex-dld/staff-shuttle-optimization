@@ -1,11 +1,21 @@
 from rest_framework import serializers
 from .models import Employee
+from .utils import address_match_score
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    workspace_names = serializers.SerializerMethodField()
+    address_score = serializers.SerializerMethodField()
+
+    def get_workspace_names(self, obj):
+        return list(obj.workspaces.values_list('name', flat=True))
+
+    def get_address_score(self, obj):
+        return address_match_score(obj.address, obj.api_address)
+
     class Meta:
         model = Employee
-        fields = ['id', 'personnel_code', 'address', 'api_address', 'lat', 'lng', 'geocode_status', 'created_at']
+        fields = ['id', 'personnel_code', 'address', 'api_address', 'lat', 'lng', 'geocode_status', 'created_at', 'workspace_names', 'address_score']
         read_only_fields = ['created_at']
 
 

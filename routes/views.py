@@ -94,15 +94,15 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
                 if not stop.isochrone:
                     if not settings.ORS_API_KEY:
                         return Response({'error': 'ORS_API_KEY sunucuda tanımlı değil.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    for attempt in range(3):
+                    for attempt in range(5):
                         try:
-                            stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, 15, settings.ORS_API_KEY)
+                            stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, 1200, settings.ORS_API_KEY)
                             stop.save(update_fields=['isochrone'])
-                            time.sleep(1.5)
+                            time.sleep(2)
                             break
                         except Exception as exc:
-                            if attempt < 2 and '429' in str(exc):
-                                time.sleep(5 * (attempt + 1))
+                            if '429' in str(exc) and attempt < 4:
+                                time.sleep(10 * (2 ** attempt))  # 10s, 20s, 40s, 80s
                             else:
                                 return Response({'error': f'İzokron hatası ({stop.name}): {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
@@ -219,15 +219,15 @@ class RouteViewSet(viewsets.ModelViewSet):
         import time
         for stop in stops:
             if not stop.isochrone:
-                for attempt in range(3):
+                for attempt in range(5):
                     try:
-                        stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, 15, settings.ORS_API_KEY)
+                        stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, 1200, settings.ORS_API_KEY)
                         stop.save(update_fields=['isochrone'])
-                        time.sleep(1.5)  # ORS free tier: ~40 req/min
+                        time.sleep(2)
                         break
                     except Exception as exc:
-                        if attempt < 2 and '429' in str(exc):
-                            time.sleep(5 * (attempt + 1))
+                        if '429' in str(exc) and attempt < 4:
+                            time.sleep(10 * (2 ** attempt))  # 10s, 20s, 40s, 80s
                         else:
                             return Response({'error': f'İzokron hatası ({stop.name}): {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
@@ -382,11 +382,11 @@ class StopViewSet(viewsets.ModelViewSet):
         stop = self.get_object()
 
         # Fetch or refresh isochrone
-        minutes = int(request.query_params.get('minutes', 15))
+        meters = int(request.query_params.get('meters', 1200))
         if not stop.isochrone:
             try:
                 stop.isochrone = get_isochrone_from_ors(
-                    stop.latitude, stop.longitude, minutes, settings.ORS_API_KEY
+                    stop.latitude, stop.longitude, meters, settings.ORS_API_KEY
                 )
                 stop.save(update_fields=['isochrone'])
             except Exception as exc:
@@ -413,7 +413,7 @@ class StopViewSet(viewsets.ModelViewSet):
         return Response({
             'stop_id': str(stop.id),
             'stop_name': stop.name,
-            'minutes': minutes,
+            'meters': meters,
             'employee_count': len(nearby),
             'employees': nearby,
             'isochrone': stop.isochrone,

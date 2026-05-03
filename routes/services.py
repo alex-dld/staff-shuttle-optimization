@@ -49,17 +49,17 @@ def parse_google_maps_url(url: str) -> list:
     return result
 
 
-def get_isochrone_from_ors(lat: float, lng: float, minutes: int, api_key: str) -> dict:
+def get_isochrone_from_ors(lat: float, lng: float, meters: int, api_key: str) -> dict:
     """
-    Call ORS Isochrones API for a walking isochrone.
+    Call ORS Isochrones API for a walking isochrone (distance-based).
     Returns GeoJSON FeatureCollection with the polygon.
     """
     response = requests.post(
         'https://api.openrouteservice.org/v2/isochrones/foot-walking',
         json={
             'locations': [[lng, lat]],
-            'range': [minutes * 60],
-            'range_type': 'time',
+            'range': [meters],
+            'range_type': 'distance',
         },
         headers={
             'Authorization': api_key,

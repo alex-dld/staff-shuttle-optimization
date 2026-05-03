@@ -77,7 +77,35 @@
       display: flex;
       flex-direction: column;
       overflow-y: auto;
+      transition: width 0.25s ease, min-width 0.25s ease;
     }
+
+    #sidebar.collapsed {
+      width: 0;
+      min-width: 0;
+      overflow: hidden;
+      border-right: none;
+    }
+
+    #hamburger-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-right: 12px;
+    }
+    #hamburger-btn span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: #aaa;
+      border-radius: 2px;
+      transition: background 0.15s;
+    }
+    #hamburger-btn:hover span { background: #7c8cf8; }
 
     #map-container {
       flex: 1;
@@ -94,7 +122,12 @@
 </head>
 <body>
   <nav id="navbar">
-    <span class="brand">Servis Optimizasyonu</span>
+    <div style="display:flex;align-items:center;">
+      <button id="hamburger-btn" title="Paneli aç/kapat">
+        <span></span><span></span><span></span>
+      </button>
+      <span class="brand">Servis Optimizasyonu</span>
+    </div>
     {% block navbar_right %}{% endblock %}
   </nav>
   <div id="main">
