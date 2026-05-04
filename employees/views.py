@@ -95,6 +95,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(geocode_status='ok')
         return qs
 
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get('all') == '1':
+            return None
+        return super().paginate_queryset(queryset)
+
     def create(self, request, *args, **kwargs):
         serializer = EmployeeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
