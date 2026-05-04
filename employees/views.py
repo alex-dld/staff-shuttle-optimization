@@ -1,5 +1,6 @@
 import io
 import logging
+import threading
 import time
 
 import openpyxl
@@ -12,9 +13,71 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from workspaces.models import Workspace
-from .models import Employee
+from .models import Employee, ImportJob
 from .serializers import EmployeeSerializer, EmployeeCreateSerializer
 from .utils import geocode_address
+
+
+def _run_import_job(job_id, rows, force):
+    from django.db import connection
+    connection.close()  # thread'e yeni DB bağlantısı açtır
+
+    try:
+        job = ImportJob.objects.get(id=job_id)
+    except ImportJob.DoesNotExist:
+        return
+
+    for row in rows:
+        job.refresh_from_db(fields=['stop_requested'])
+        if job.stop_requested:
+            job.log.append({'color': '#f0a030', 'text': f'⏹ Durduruldu ({job.done}/{job.total})'})
+            job.status = 'stopped'
+            job.save(update_fields=['log', 'status', 'updated_at'])
+            return
+
+        personnel_code = str(row.get('code', '')).strip()
+        address = str(row.get('address', '')).strip().lower()
+        job.log.append({'color': '#555', 'text': f'[{job.done}/{job.total}] {personnel_code} → {address}'})
+
+        if not force and row.get('exists') and row.get('existing_status') == 'ok':
+            job.done += 1
+            job.skipped += 1
+            job.log.append({'color': '#555', 'text': '  – atlandı (API çağrısı yapılmadı)'})
+            job.save(update_fields=['done', 'skipped', 'log', 'updated_at'])
+            continue
+
+        logger.info('import_job [%s]: geocode → "%s"', personnel_code, address)
+        result = geocode_address(address)
+        emp, _ = Employee.objects.get_or_create(
+            personnel_code=personnel_code,
+            defaults={'address': address, 'geocode_status': 'pending'},
+        )
+
+        if result['ok']:
+            emp.lat, emp.lng = result['lat'], result['lng']
+            emp.api_address = result['api_address']
+            emp.geocode_status = 'ok'
+            emp.address = address
+            emp.save()
+            job.ok += 1
+            job.log.append({'color': '#4cde8a', 'text': f'  ✓ ok → {result["api_address"]}'})
+            logger.info('import_job [%s]: OK → %s', personnel_code, result['api_address'])
+        else:
+            emp.geocode_status = 'failed'
+            emp.address = address
+            emp.save()
+            job.failed += 1
+            reason = result.get('reason', 'unknown')
+            job.errors.append({'code': personnel_code, 'reason': reason})
+            job.log.append({'color': '#e05a5a', 'text': f'  ✗ hata: {reason}'})
+            logger.error('import_job [%s]: HATA %s', personnel_code, reason)
+
+        job.done += 1
+        job.save(update_fields=['done', 'ok', 'failed', 'log', 'errors', 'updated_at'])
+        time.sleep(0.18)
+
+    job.status = 'done'
+    job.save(update_fields=['status', 'updated_at'])
 
 
 def manage_view(request):
@@ -98,6 +161,49 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 status=502,
             )
         return Response({'lat': result['lat'], 'lng': result['lng'], 'api_address': result['api_address']})
+
+    @action(detail=False, methods=['post'], url_path='import-start')
+    def import_start(self, request):
+        rows = request.data.get('rows', [])
+        force = request.data.get('force', False)
+        if not rows:
+            return Response({'error': 'Satır listesi boş'}, status=400)
+        job = ImportJob.objects.create(total=len(rows))
+        threading.Thread(target=_run_import_job, args=(job.id, rows, force), daemon=True).start()
+        return Response({'job_id': str(job.id)})
+
+    @action(detail=False, methods=['get'], url_path='import-status')
+    def import_status(self, request):
+        job_id = request.query_params.get('job_id')
+        if not job_id:
+            return Response({'error': 'job_id gerekli'}, status=400)
+        try:
+            job = ImportJob.objects.get(id=job_id)
+        except ImportJob.DoesNotExist:
+            return Response({'error': 'Job bulunamadı'}, status=404)
+        return Response({
+            'status': job.status,
+            'total': job.total,
+            'done': job.done,
+            'ok': job.ok,
+            'failed': job.failed,
+            'skipped': job.skipped,
+            'log': job.log,
+            'errors': job.errors,
+        })
+
+    @action(detail=False, methods=['post'], url_path='import-stop')
+    def import_stop(self, request):
+        job_id = request.data.get('job_id')
+        if not job_id:
+            return Response({'error': 'job_id gerekli'}, status=400)
+        try:
+            job = ImportJob.objects.get(id=job_id)
+        except ImportJob.DoesNotExist:
+            return Response({'error': 'Job bulunamadı'}, status=404)
+        job.stop_requested = True
+        job.save(update_fields=['stop_requested'])
+        return Response({'ok': True})
 
     @action(detail=False, methods=['post'], url_path='parse-excel')
     def parse_excel(self, request):

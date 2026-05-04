@@ -1349,7 +1349,9 @@
 
     let selectedFile = null;
     let importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
-    let stopRequested = false;
+    let activeJobId = null;
+    let pollTimer = null;
+    let renderedLogCount = 0;
 
     function showImportSection(name) {
       ['import-upload-area', 'import-conflict-area', 'import-progress-area', 'import-result'].forEach(id => {
@@ -1384,100 +1386,94 @@
       showImportSection('import-result');
     }
 
-    function appendLog(color, text) {
+    function renderLogLines(lines) {
       const log = document.getElementById('import-log');
       if (!log) return;
-      const line = document.createElement('div');
-      line.style.color = color;
-      line.style.borderBottom = '1px solid #12122a';
-      line.style.padding = '2px 0';
-      line.textContent = text;
-      log.appendChild(line);
-      log.scrollTop = log.scrollHeight;
+      const newLines = lines.slice(renderedLogCount);
+      newLines.forEach(({ color, text }) => {
+        const line = document.createElement('div');
+        line.style.color = color;
+        line.style.borderBottom = '1px solid #12122a';
+        line.style.padding = '2px 0';
+        line.textContent = text;
+        log.appendChild(line);
+      });
+      renderedLogCount += newLines.length;
+      if (newLines.length) log.scrollTop = log.scrollHeight;
     }
 
-    async function runImport(rows, force = false) {
-      importState = { running: true, total: rows.length, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
-      stopRequested = false;
+    async function startImport(rows, force) {
+      const resp = await fetch('/api/employees/import-start/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ rows, force }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Başlatılamadı');
+      return data.job_id;
+    }
+
+    function startPolling(jobId) {
+      activeJobId = jobId;
+      renderedLogCount = 0;
+      localStorage.setItem('activeJobId', jobId);
+      importState = { running: true, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
       showImportSection('import-progress-area');
       document.getElementById('import-log').innerHTML = '';
       document.getElementById('import-stop-btn').disabled = false;
       document.getElementById('import-stop-btn').textContent = 'Durdur';
-      const parsedEl = document.getElementById('prog-parsed');
-      if (parsedEl) parsedEl.textContent = '(' + rows.length + ' satır okundu)';
       updateProgressUI();
+      pollTimer = setInterval(pollStatus, 1000);
+    }
 
-      for (const row of rows) {
-        if (stopRequested) {
-          appendLog('#f0a030', '⏹ Kullanıcı tarafından durduruldu (' + importState.done + '/' + rows.length + ')');
-          break;
-        }
-        appendLog('#555', '[' + importState.done + '/' + rows.length + '] ' + row.code + ' → ' + row.address);
-
-        // API çağrısı yapmadan atla: zaten ok kayıtlı ve force=false
-        if (!force && row.exists && row.existing_status === 'ok') {
-          importState.done++;
-          importState.skipped++;
-          appendLog('#555', '  – atlandı (API çağrısı yapılmadı)');
-          updateProgressUI();
-          continue;
-        }
-
-        try {
-          const t0 = Date.now();
-          const resp = await fetch('/api/employees/import-row/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-            body: JSON.stringify({ code: row.code, address: row.address, force }),
-          });
-          const data = await resp.json();
-          const ms = Date.now() - t0;
-          importState.done++;
-          if (data.status === 'ok') {
-            importState.ok++;
-            appendLog('#4cde8a', '  ✓ ok  (' + ms + 'ms)' + (data.api_address ? '  →  ' + data.api_address : ''));
-          } else if (data.status === 'skipped') {
-            importState.skipped++;
-            appendLog('#888', '  – atlandı (zaten kayıtlı)');
-          } else {
-            importState.failed++;
-            importState.errors.push({ code: row.code, reason: data.reason || 'hata' });
-            appendLog('#e05a5a', '  ✗ hata: ' + (data.reason || 'bilinmiyor'));
-          }
-        } catch (err) {
-          importState.done++;
-          importState.failed++;
-          importState.errors.push({ code: row.code, reason: 'bağlantı hatası' });
-          appendLog('#e05a5a', '  ✗ bağlantı hatası: ' + err.message);
-        }
-
+    async function pollStatus() {
+      if (!activeJobId) return;
+      try {
+        const resp = await fetch('/api/employees/import-status/?job_id=' + activeJobId);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        importState = {
+          running: data.status === 'running',
+          total: data.total, done: data.done,
+          ok: data.ok, failed: data.failed, skipped: data.skipped,
+          errors: data.errors,
+        };
         updateProgressUI();
-        if (importState.done % 10 === 0) loadEmployees();
-        // Yandex rate limit — sadece gerçek API çağrısı yapıldıysa bekle
-        if (force || !row.exists || row.existing_status !== 'ok') {
-          await new Promise(r => setTimeout(r, 180));
+        renderLogLines(data.log);
+        if (data.status !== 'running') {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          localStorage.removeItem('activeJobId');
+          activeJobId = null;
+          await loadEmployees();
+          if (document.getElementById('import-modal').classList.contains('open')) {
+            showResult();
+          }
         }
-      }
+      } catch { /* ağ hatası — bir sonraki tick'te tekrar dener */ }
+    }
 
-      importState.running = false;
-      stopRequested = false;
-      document.getElementById('import-stop-btn').disabled = true;
-      await loadEmployees();
-      if (document.getElementById('import-modal').classList.contains('open')) {
-        showResult();
+    async function runImport(rows, force = false) {
+      showImportSection('import-progress-area');
+      document.getElementById('import-log').innerHTML = '';
+      document.getElementById('prog-parsed').textContent = '(' + rows.length + ' satır okundu)';
+      try {
+        const jobId = await startImport(rows, force);
+        startPolling(jobId);
+      } catch (err) {
+        document.getElementById('import-error').textContent = err.message;
+        document.getElementById('import-error').style.display = 'block';
+        showImportSection('import-upload-area');
       }
     }
 
     function openImportModal() {
-      if (importState.running) {
-        // İşlem devam ediyor — progress göster
+      if (importState.running || activeJobId) {
         showImportSection('import-progress-area');
         updateProgressUI();
-      } else if (importState.total > 0 && !importState.running) {
-        // Tamamlandı — özet göster
+      } else if (importState.total > 0) {
         showResult();
       } else {
-        // Başlangıç
         selectedFile = null;
         document.getElementById('import-file-input').value = '';
         document.getElementById('drop-zone').innerHTML = '<div class="drop-icon">📂</div><div>Dosyayı buraya sürükleyin veya tıklayın</div><div class="drop-hint">Yalnızca .xlsx — A: Sicil No, B: Adres</div>';
@@ -1494,6 +1490,10 @@
 
     function resetImportToUpload() {
       importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+      activeJobId = null;
+      renderedLogCount = 0;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      localStorage.removeItem('activeJobId');
       selectedFile = null;
       document.getElementById('import-file-input').value = '';
       document.getElementById('drop-zone').innerHTML = '<div class="drop-icon">📂</div><div>Dosyayı buraya sürükleyin veya tıklayın</div><div class="drop-hint">Yalnızca .xlsx — A: Sicil No, B: Adres</div>';
@@ -1527,12 +1527,16 @@
     document.getElementById('open-import-modal').addEventListener('click', openImportModal);
     document.getElementById('import-cancel').addEventListener('click', closeImportModal);
     document.getElementById('import-bg-btn').addEventListener('click', closeImportModal);
-    document.getElementById('import-stop-btn').addEventListener('click', () => {
-      if (!importState.running) return;
+    document.getElementById('import-stop-btn').addEventListener('click', async () => {
+      if (!activeJobId) return;
       if (!confirm('Import işlemi durdurulsun mu?\n' + importState.done + '/' + importState.total + ' satır işlendi, geri kalanlar atlanacak.')) return;
-      stopRequested = true;
       document.getElementById('import-stop-btn').disabled = true;
       document.getElementById('import-stop-btn').textContent = 'Durduruluyor…';
+      await fetch('/api/employees/import-stop/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ job_id: activeJobId }),
+      });
     });
     document.getElementById('import-modal').addEventListener('click', e => { if (e.target === document.getElementById('import-modal')) closeImportModal(); });
     document.getElementById('import-again').addEventListener('click', resetImportToUpload);
@@ -1595,6 +1599,31 @@
 
     // --- Başlangıç ---
     loadEmployees();
+
+    // Sayfa yenilenince aktif import job varsa polling'e devam et
+    const savedJobId = localStorage.getItem('activeJobId');
+    if (savedJobId) {
+      fetch('/api/employees/import-status/?job_id=' + savedJobId)
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === 'running') {
+            activeJobId = savedJobId;
+            renderedLogCount = 0;
+            importState = {
+              running: true,
+              total: data.total, done: data.done,
+              ok: data.ok, failed: data.failed, skipped: data.skipped,
+              errors: data.errors,
+            };
+            renderLogLines(data.log);
+            document.getElementById('import-stop-btn').disabled = false;
+            pollTimer = setInterval(pollStatus, 1000);
+          } else {
+            localStorage.removeItem('activeJobId');
+          }
+        })
+        .catch(() => localStorage.removeItem('activeJobId'));
+    }
   </script>
 </body>
 </html>
