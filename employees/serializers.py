@@ -8,7 +8,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     address_score = serializers.SerializerMethodField()
 
     def get_workspace_names(self, obj):
-        return list(obj.workspaces.values_list('name', flat=True))
+        return [w.name for w in obj.workspaces.all()]
 
     def get_address_score(self, obj):
         return address_match_score(obj.address, obj.api_address)
