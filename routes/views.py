@@ -85,9 +85,9 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
             if not all_stops:
                 return Response({'error': 'Hiç durak yok.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            employees = list(workspace.employees.filter(geocode_status='ok'))
+            employees = list(workspace.employees.all())
             if not employees:
-                return Response({'error': 'Geocode edilmiş çalışan yok.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Çalışan yok.'}, status=status.HTTP_400_BAD_REQUEST)
 
             # Phase 1: tüm durakların izokronlarını önceden cache'le
             for stop in all_stops:
@@ -122,6 +122,10 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
             shapely_zero = 0  # hiçbir izokrona giremeyen
 
             for emp in employees:
+                if emp.lat is None or emp.lng is None:
+                    shapely_zero += 1
+                    unreachable.append(emp)
+                    continue
                 pt = Point(emp.lng, emp.lat)
                 candidates = [i for i, poly in enumerate(stop_polygons) if poly.contains(pt)]
                 if len(candidates) == 0:
@@ -211,9 +215,9 @@ class RouteViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Bu rotada durak yok.'}, status=status.HTTP_400_BAD_REQUEST)
 
         workspace = route.route_group.workspace
-        employees = list(workspace.employees.filter(geocode_status='ok'))
+        employees = list(workspace.employees.all())
         if not employees:
-            return Response({'error': 'Workspace\'te geocode edilmiş çalışan yok.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Workspace\'te çalışan yok.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Phase 1: ensure all stops have an isochrone cached
         import time
@@ -244,6 +248,9 @@ class RouteViewSet(viewsets.ModelViewSet):
         ambiguous = []  # (employee, [stop_indices])
 
         for emp in employees:
+            if emp.lat is None or emp.lng is None:
+                unreachable.append(emp)
+                continue
             pt = Point(emp.lng, emp.lat)
             candidates = [i for i, poly in enumerate(stop_polygons) if poly.contains(pt)]
             if len(candidates) == 0:
