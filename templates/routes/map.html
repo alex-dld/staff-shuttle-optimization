@@ -2523,7 +2523,7 @@ textarea { height: 72px; resize: vertical; }
         var altBg   = lightenColor(color, 0.97);
         var dirLabel = route.direction === 'inbound' ? '&#8592; Geliş' : '&#8594; Gidiş';
 
-        html += '<div style="margin-bottom:8px;">'
+        html += '<div class="pdf-block" style="margin-bottom:8px;">'
           + '<div style="background:' + color + ';color:#fff;padding:4px 8px;font-size:9px;font-weight:bold;">'
           + route.name + ' &nbsp; ' + dirLabel + '</div>';
 
@@ -2566,6 +2566,27 @@ textarea { height: 72px; resize: vertical; }
       html += '</div>';
     });
 
+    // ── Atanamayanlar ─────────────────────────────────────────────────────
+    var unreachable = WORKSPACE_EMPLOYEES.filter(function(e) { return e._routeColor === 'unreachable'; });
+    if (unreachable.length) {
+      html += '<div class="pdf-block" style="margin-bottom:14px;">'
+        + '<div style="background:#7f1d1d;color:#fecaca;padding:5px 10px;font-size:10px;font-weight:bold;margin-bottom:0;">ATANAMAYANLAR (' + unreachable.length + ' kişi)</div>'
+        + '<table style="width:' + W + 'px;table-layout:fixed;border-collapse:collapse;border:1px solid #fca5a5;border-top:none;">'
+        + '<colgroup><col style="width:28px;"><col></colgroup>'
+        + '<thead><tr style="background:#991b1b;color:#fff;">'
+        + '<th style="padding:4px 5px;text-align:center;font-size:8px;border:1px solid rgba(255,255,255,0.25);">#</th>'
+        + '<th style="padding:4px 5px;text-align:left;font-size:8px;border:1px solid rgba(255,255,255,0.25);">Personel Kodu</th>'
+        + '</tr></thead><tbody>';
+      unreachable.forEach(function(e, idx) {
+        var bg = idx % 2 === 0 ? '#fff7f7' : '#fff';
+        html += '<tr style="background:' + bg + ';">'
+          + '<td style="padding:3px 5px;text-align:center;font-size:8px;border:1px solid #fee2e2;">' + (idx + 1) + '</td>'
+          + '<td style="padding:3px 5px;font-size:8px;border:1px solid #fee2e2;">' + e.personnel_code + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
     html += '<div style="text-align:center;font-size:7px;color:#bbb;margin-top:10px;padding-top:6px;border-top:1px solid #eee;">Servis Optimizasyonu &nbsp;·&nbsp; ' + today + '</div>';
     html += '</div>';
     return html;
@@ -2586,8 +2607,14 @@ textarea { height: 72px; resize: vertical; }
       // Let browser paint the element before capturing
       await new Promise(function(resolve) { requestAnimationFrame(function() { setTimeout(resolve, 80); }); });
 
+      // Collect block Y positions (scaled by html2canvas scale=2) before render
+      var scale = 2;
+      var blockYs = Array.from(container.querySelectorAll('.pdf-block')).map(function(el) {
+        return Math.round(el.offsetTop * scale);
+      });
+
       var canvas = await html2canvas(container, {
-        scale: 2,
+        scale: scale,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
@@ -2596,33 +2623,48 @@ textarea { height: 72px; resize: vertical; }
       });
 
       var { jsPDF } = window.jspdf;
-      // A4: 210 x 297 mm, margins 10mm each side
-      var marginMm = 10;
-      var pageWmm  = 210;
-      var pageHmm  = 297;
-      var contentWmm = pageWmm - marginMm * 2;
-      var contentHmm = pageHmm - marginMm * 2;
+      var marginMm   = 10;
+      var contentWmm = 210 - marginMm * 2;
+      var contentHmm = 297 - marginMm * 2;
+      var mmPerPx    = contentWmm / canvas.width;
+      var pageHpx    = Math.floor(contentHmm / mmPerPx);
 
-      // How many mm per canvas pixel
-      var mmPerPx = contentWmm / canvas.width;
-      var pageHpx = Math.floor(contentHmm / mmPerPx);   // canvas px per PDF page
+      // Build smart page-cut positions:
+      // If a block starts in the bottom 20% of a page, begin a new page there instead.
+      var cuts = [0];
+      var cursor = 0;
+      while (cursor < canvas.height) {
+        var idealCut = cursor + pageHpx;
+        if (idealCut >= canvas.height) break;
+
+        // Find a block that starts in the last 20% of this page
+        var threshold = cursor + pageHpx * 0.80;
+        var smartCut = idealCut;
+        for (var i = 0; i < blockYs.length; i++) {
+          if (blockYs[i] > threshold && blockYs[i] < idealCut) {
+            smartCut = blockYs[i];
+            break;
+          }
+        }
+
+        cuts.push(smartCut);
+        cursor = smartCut;
+      }
+      cuts.push(canvas.height);
 
       var doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      var totalPages = Math.ceil(canvas.height / pageHpx);
 
-      for (var p = 0; p < totalPages; p++) {
+      for (var p = 0; p < cuts.length - 1; p++) {
         if (p > 0) doc.addPage();
+        var srcY = cuts[p];
+        var srcH = cuts[p + 1] - cuts[p];
 
-        var srcY   = p * pageHpx;
-        var srcH   = Math.min(pageHpx, canvas.height - srcY);
-
-        var slice  = document.createElement('canvas');
+        var slice = document.createElement('canvas');
         slice.width  = canvas.width;
         slice.height = srcH;
         slice.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
 
-        var imgH = srcH * mmPerPx;
-        doc.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', marginMm, marginMm, contentWmm, imgH);
+        doc.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', marginMm, marginMm, contentWmm, srcH * mmPerPx);
       }
 
       var today = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
