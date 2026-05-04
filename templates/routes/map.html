@@ -2485,22 +2485,24 @@ textarea { height: 72px; resize: vertical; }
   });
 
   // ── PDF Export ────────────────────────────────────────────────────────────
-  function lightenColor(hex, amount) {
-    const h = hex.replace('#', '');
-    const full = h.length === 3 ? h.split('').map(function(c) { return c + c; }).join('') : h;
-    const r = parseInt(full.substring(0, 2), 16);
-    const g = parseInt(full.substring(2, 4), 16);
-    const b = parseInt(full.substring(4, 6), 16);
-    const lr = Math.round(r + (255 - r) * amount);
-    const lg = Math.round(g + (255 - g) * amount);
-    const lb = Math.round(b + (255 - b) * amount);
-    return 'rgb(' + lr + ',' + lg + ',' + lb + ')';
+  function hexComponents(hex) {
+    const h = (hex.replace('#', '').length === 3)
+      ? hex.replace('#', '').split('').map(function(c) { return c + c; }).join('')
+      : hex.replace('#', '');
+    return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+  }
+  function lightenHex(hex, amt) {
+    return '#' + hexComponents(hex).map(function(v) {
+      return Math.round(v + (255-v)*amt).toString(16).padStart(2,'0');
+    }).join('');
+  }
+  function darkenHex(hex, factor) {
+    return '#' + hexComponents(hex).map(function(v) {
+      return Math.max(0, Math.floor(v*factor)).toString(16).padStart(2,'0');
+    }).join('');
   }
 
-  // PDF content width in pt (A4=595pt, margins 28pt each side → 539pt)
-  var PDF_W = 539;
-
-  function buildReportHTML() {
+  function buildDocDefinition() {
     var workspaceName = '{{ workspace.name }}';
     var today = new Date().toLocaleDateString('tr-TR');
     var totalRoutes = 0, totalStops = 0, totalEmployees = 0;
@@ -2514,176 +2516,141 @@ textarea { height: 72px; resize: vertical; }
       });
     });
 
-    // Container is exactly PDF_W px wide so 1px == 1pt — no horizontal overflow possible
-    var W = PDF_W;
-    var html = '<div style="width:' + W + 'px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#222;background:#fff;box-sizing:border-box;overflow:hidden;">'
-      + '<div style="background:#0f0f1a;color:#fff;padding:14px 16px 11px;margin-bottom:14px;">'
-      + '<div style="font-size:15px;font-weight:bold;margin-bottom:3px;">Servis Atama Raporu</div>'
-      + '<div style="font-size:9px;color:#aab;margin-bottom:4px;">' + workspaceName + ' &nbsp;·&nbsp; ' + today + '</div>'
-      + '<div style="font-size:9px;color:#7c8cf8;">' + totalRoutes + ' rota &nbsp;|&nbsp; ' + totalStops + ' durak &nbsp;|&nbsp; ' + totalEmployees + ' çalışan</div>'
-      + '</div>';
+    var content = [];
 
-    GROUPS_DATA.forEach(function(group) {
-      html += '<div style="margin-bottom:14px;">'
-        + '<div style="background:#1e1e3c;color:#c8c8ff;padding:5px 10px;font-size:10px;font-weight:bold;margin-bottom:6px;">'
-        + group.name.toUpperCase() + '</div>';
-
-      (group.routes || []).forEach(function(route) {
-        var color = route.color || '#7c8cf8';
-        var lightBg = lightenColor(color, 0.90);
-        var altBg   = lightenColor(color, 0.97);
-        var dirLabel = route.direction === 'inbound' ? '&#8592; Geliş' : '&#8594; Gidiş';
-
-        html += '<div class="pdf-block" style="margin-bottom:8px;">'
-          + '<div style="background:' + color + ';color:#fff;padding:4px 8px;font-size:9px;font-weight:bold;">'
-          + route.name + ' &nbsp; ' + dirLabel + '</div>';
-
-        var stops = route.stops || [];
-        var hasAny = stops.some(function(s) { return (s._assignedEmployees || []).length > 0; });
-
-        if (!hasAny) {
-          html += '<div style="padding:5px 8px;background:#f8f8f8;border:1px solid #ddd;border-top:none;font-style:italic;color:#999;font-size:8px;">Henüz atama yapılmamış.</div>';
-        } else {
-          // Fixed column widths that sum to PDF_W (no overflow)
-          html += '<table style="width:' + W + 'px;table-layout:fixed;border-collapse:collapse;border:1px solid #ddd;border-top:none;">'
-            + '<colgroup>'
-            + '<col style="width:28px;">'
-            + '<col style="width:170px;">'
-            + '<col>'   // takes remaining space
-            + '</colgroup>'
-            + '<thead><tr style="background:' + color + ';color:#fff;">'
-            + '<th style="padding:4px 5px;text-align:center;font-size:8px;border:1px solid rgba(255,255,255,0.25);">#</th>'
-            + '<th style="padding:4px 5px;text-align:left;font-size:8px;border:1px solid rgba(255,255,255,0.25);">Durak</th>'
-            + '<th style="padding:4px 5px;text-align:left;font-size:8px;border:1px solid rgba(255,255,255,0.25);">Personel Kodları</th>'
-            + '</tr></thead><tbody>';
-
-          stops.forEach(function(stop, idx) {
-            var emps = stop._assignedEmployees || [];
-            var codes = emps.length ? emps.map(function(e) { return e.personnel_code; }).join(', ') : '—';
-            var bg = idx % 2 === 0 ? '#fff' : altBg;
-            if (emps.length > 0) bg = (idx % 2 === 0 ? lightBg : altBg);
-            html += '<tr style="background:' + bg + ';">'
-              + '<td style="padding:3px 5px;text-align:center;font-size:8px;border:1px solid #eee;white-space:nowrap;">' + stop.sort_order + '</td>'
-              + '<td style="padding:3px 5px;font-size:8px;font-weight:bold;border:1px solid #eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + stop.name + '</td>'
-              + '<td style="padding:3px 5px;font-size:8px;border:1px solid #eee;word-break:break-word;">' + codes + '</td>'
-              + '</tr>';
-          });
-
-          html += '</tbody></table>';
-        }
-        html += '</div>';
-      });
-
-      html += '</div>';
+    // ── Başlık ──
+    content.push({
+      table: { widths: ['*'], body: [[{
+        stack: [
+          { text: 'Servis Atama Raporu', fontSize: 15, bold: true, color: '#ffffff' },
+          { text: workspaceName + '  ·  ' + today, fontSize: 8, color: '#aabbcc', margin: [0,3,0,2] },
+          { text: totalRoutes + ' rota  |  ' + totalStops + ' durak  |  ' + totalEmployees + ' çalışan', fontSize: 8, color: '#7c8cf8' },
+        ],
+        fillColor: '#0f0f1a', margin: [10, 8, 10, 8],
+      }]] },
+      layout: 'noBorders', margin: [0, 0, 0, 10],
     });
 
-    // ── Atanamayanlar ─────────────────────────────────────────────────────
+    GROUPS_DATA.forEach(function(group) {
+      // Grup başlığı
+      content.push({
+        table: { widths: ['*'], body: [[{
+          text: group.name.toUpperCase(),
+          bold: true, fontSize: 9, color: '#c8c8ff', fillColor: '#1e1e3c', margin: [7, 4, 7, 4],
+        }]] },
+        layout: 'noBorders', margin: [0, 0, 0, 3],
+      });
+
+      (group.routes || []).forEach(function(route) {
+        var color    = route.color || '#7c8cf8';
+        var lightBg  = lightenHex(color, 0.88);
+        var altBg    = lightenHex(color, 0.96);
+        var darkHdr  = darkenHex(color, 0.68);
+        var dirLabel = route.direction === 'inbound' ? '<- Geliş' : '-> Gidiş';
+        var stops    = route.stops || [];
+        var hasAny   = stops.some(function(s) { return (s._assignedEmployees || []).length > 0; });
+
+        // Rota başlığı
+        content.push({
+          table: { widths: ['*'], body: [[{
+            text: route.name + '   ' + dirLabel,
+            bold: true, fontSize: 8, color: '#ffffff', fillColor: color, margin: [7, 3, 7, 3],
+          }]] },
+          layout: 'noBorders', margin: [0, 1, 0, 0],
+        });
+
+        if (!hasAny) {
+          content.push({ text: 'Henüz atama yapılmamış.', italics: true, fontSize: 7, color: '#999999', margin: [6, 3, 0, 5] });
+          return;
+        }
+
+        var tableBody = [[
+          { text: '#',               bold: true, fontSize: 7.5, alignment: 'center', fillColor: darkHdr, color: '#fff' },
+          { text: 'Durak',           bold: true, fontSize: 7.5, fillColor: darkHdr, color: '#fff' },
+          { text: 'Kişi',            bold: true, fontSize: 7.5, alignment: 'center', fillColor: darkHdr, color: '#fff' },
+          { text: 'Personel Kodları',bold: true, fontSize: 7.5, fillColor: darkHdr, color: '#fff' },
+        ]];
+
+        stops.forEach(function(stop, idx) {
+          var emps  = stop._assignedEmployees || [];
+          var codes = emps.length ? emps.map(function(e) { return e.personnel_code; }).join(', ') : '—';
+          var bg    = emps.length ? (idx % 2 === 0 ? lightBg : altBg) : '#ffffff';
+          tableBody.push([
+            { text: String(stop.sort_order), fontSize: 7.5, alignment: 'center', fillColor: bg },
+            { text: stop.name,               fontSize: 7.5, bold: true,          fillColor: bg },
+            { text: emps.length ? String(emps.length) : '—', fontSize: 7.5, alignment: 'center', bold: emps.length > 0, fillColor: bg },
+            { text: codes,                   fontSize: 7.5,                      fillColor: bg },
+          ]);
+        });
+
+        content.push({
+          table: { headerRows: 1, widths: [18, 110, 22, '*'], body: tableBody },
+          layout: {
+            hLineWidth: function() { return 0.4; },
+            vLineWidth: function() { return 0; },
+            hLineColor: function() { return '#dddddd'; },
+          },
+          margin: [0, 0, 0, 5],
+        });
+      });
+
+      content.push({ text: '', margin: [0, 3, 0, 0] });
+    });
+
+    // ── Atanamayanlar ──
     var unreachable = WORKSPACE_EMPLOYEES.filter(function(e) { return e._routeColor === 'unreachable'; });
     if (unreachable.length) {
-      html += '<div class="pdf-block" style="margin-bottom:14px;">'
-        + '<div style="background:#7f1d1d;color:#fecaca;padding:5px 10px;font-size:10px;font-weight:bold;margin-bottom:0;">ATANAMAYANLAR (' + unreachable.length + ' kişi)</div>'
-        + '<table style="width:' + W + 'px;table-layout:fixed;border-collapse:collapse;border:1px solid #fca5a5;border-top:none;">'
-        + '<colgroup><col style="width:28px;"><col></colgroup>'
-        + '<thead><tr style="background:#991b1b;color:#fff;">'
-        + '<th style="padding:4px 5px;text-align:center;font-size:8px;border:1px solid rgba(255,255,255,0.25);">#</th>'
-        + '<th style="padding:4px 5px;text-align:left;font-size:8px;border:1px solid rgba(255,255,255,0.25);">Personel Kodu</th>'
-        + '</tr></thead><tbody>';
-      unreachable.forEach(function(e, idx) {
-        var bg = idx % 2 === 0 ? '#fff7f7' : '#fff';
-        html += '<tr style="background:' + bg + ';">'
-          + '<td style="padding:3px 5px;text-align:center;font-size:8px;border:1px solid #fee2e2;">' + (idx + 1) + '</td>'
-          + '<td style="padding:3px 5px;font-size:8px;border:1px solid #fee2e2;">' + e.personnel_code + '</td>'
-          + '</tr>';
+      content.push({
+        table: { widths: ['*'], body: [[{
+          text: 'ATANAMAYANLAR (' + unreachable.length + ' kişi)',
+          bold: true, fontSize: 9, color: '#fecaca', fillColor: '#7f1d1d', margin: [7, 4, 7, 4],
+        }]] },
+        layout: 'noBorders', margin: [0, 4, 0, 0],
       });
-      html += '</tbody></table></div>';
+
+      var unBody = [[
+        { text: '#',             bold: true, fontSize: 7.5, alignment: 'center', fillColor: '#991b1b', color: '#fff' },
+        { text: 'Personel Kodu', bold: true, fontSize: 7.5, fillColor: '#991b1b', color: '#fff' },
+      ]];
+      unreachable.forEach(function(e, idx) {
+        var bg = idx % 2 === 0 ? '#fff7f7' : '#ffffff';
+        unBody.push([
+          { text: String(idx + 1),   fontSize: 7.5, alignment: 'center', fillColor: bg },
+          { text: e.personnel_code,  fontSize: 7.5, fillColor: bg },
+        ]);
+      });
+
+      content.push({
+        table: { headerRows: 1, widths: [18, '*'], body: unBody },
+        layout: {
+          hLineWidth: function() { return 0.4; },
+          vLineWidth: function() { return 0; },
+          hLineColor: function() { return '#fca5a5'; },
+        },
+        margin: [0, 0, 0, 6],
+      });
     }
 
-    html += '<div style="text-align:center;font-size:7px;color:#bbb;margin-top:10px;padding-top:6px;border-top:1px solid #eee;">Servis Optimizasyonu &nbsp;·&nbsp; ' + today + '</div>';
-    html += '</div>';
-    return html;
+    return {
+      content: content,
+      footer: function(cur, total) {
+        return { text: 'Servis Optimizasyonu  ·  Sayfa ' + cur + ' / ' + total, alignment: 'center', fontSize: 7, color: '#bbbbbb', margin: [0, 4, 0, 0] };
+      },
+      pageMargins: [28, 28, 28, 28],
+      defaultStyle: { font: 'Roboto' },
+    };
   }
 
-  async function exportPDF() {
+  function exportPDF() {
     var btn = document.getElementById('export-pdf-btn');
     btn.disabled = true;
     btn.textContent = 'Hazırlanıyor...';
-
-    var container = document.createElement('div');
-    // Keep in viewport so html2canvas can render it, hidden behind everything
-    container.style.cssText = 'position:fixed;top:0;left:0;width:' + PDF_W + 'px;background:#fff;z-index:-1;pointer-events:none;';
-    container.innerHTML = buildReportHTML();
-    document.body.appendChild(container);
-
     try {
-      // Let browser paint the element before capturing
-      await new Promise(function(resolve) { requestAnimationFrame(function() { setTimeout(resolve, 80); }); });
-
-      // Collect block Y positions (scaled by html2canvas scale=2) before render
-      var scale = 2;
-      var blockYs = Array.from(container.querySelectorAll('.pdf-block')).map(function(el) {
-        return Math.round(el.offsetTop * scale);
-      });
-
-      var canvas = await html2canvas(container, {
-        scale: scale,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        width: PDF_W,
-        windowWidth: PDF_W,
-      });
-
-      var { jsPDF } = window.jspdf;
-      var marginMm   = 10;
-      var contentWmm = 210 - marginMm * 2;
-      var contentHmm = 297 - marginMm * 2;
-      var mmPerPx    = contentWmm / canvas.width;
-      var pageHpx    = Math.floor(contentHmm / mmPerPx);
-
-      // Build smart page-cut positions:
-      // If a block starts in the bottom 20% of a page, begin a new page there instead.
-      var cuts = [0];
-      var cursor = 0;
-      while (cursor < canvas.height) {
-        var idealCut = cursor + pageHpx;
-        if (idealCut >= canvas.height) break;
-
-        // Find a block that starts in the last 20% of this page
-        var threshold = cursor + pageHpx * 0.80;
-        var smartCut = idealCut;
-        for (var i = 0; i < blockYs.length; i++) {
-          if (blockYs[i] > threshold && blockYs[i] < idealCut) {
-            smartCut = blockYs[i];
-            break;
-          }
-        }
-
-        cuts.push(smartCut);
-        cursor = smartCut;
-      }
-      cuts.push(canvas.height);
-
-      var doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-
-      for (var p = 0; p < cuts.length - 1; p++) {
-        if (p > 0) doc.addPage();
-        var srcY = cuts[p];
-        var srcH = cuts[p + 1] - cuts[p];
-
-        var slice = document.createElement('canvas');
-        slice.width  = canvas.width;
-        slice.height = srcH;
-        slice.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-
-        doc.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', marginMm, marginMm, contentWmm, srcH * mmPerPx);
-      }
-
       var today = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
-      doc.save('atama-raporu-' + today + '.pdf');
+      pdfMake.createPdf(buildDocDefinition()).download('atama-raporu-' + today + '.pdf');
     } catch (err) {
       showToast('PDF oluşturma hatası: ' + err.message);
     } finally {
-      document.body.removeChild(container);
       btn.disabled = false;
       btn.textContent = 'PDF İndir';
     }
