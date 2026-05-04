@@ -15,7 +15,7 @@ from .serializers import RouteGroupSerializer, RouteSerializer, StopSerializer
 from .services import parse_google_maps_url, get_route_from_mapbox, get_isochrone_from_ors, get_walking_matrix_from_ors
 
 
-WALK_METERS = 1200
+WALK_METERS = 900
 
 
 def _valid_uuid(value):
