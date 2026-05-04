@@ -1796,7 +1796,7 @@ textarea { height: 72px; resize: vertical; }
 
   async function loadWorkspaceEmployees() {
     try {
-      const resp = await fetch('/api/employees/?workspace=' + WORKSPACE_ID);
+      const resp = await fetch('/api/employees/?all=1&workspace=' + WORKSPACE_ID);
       if (!resp.ok) return;
       const data = await resp.json();
       const results = data.results || data;
