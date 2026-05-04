@@ -2573,10 +2573,12 @@ textarea { height: 72px; resize: vertical; }
           { text: 'Personel Kodları',bold: true, fontSize: 7.5, fillColor: darkHdr, color: '#fff' },
         ]];
 
+        var routeTotal = 0;
         stops.forEach(function(stop, idx) {
           var emps  = stop._assignedEmployees || [];
           var codes = emps.length ? emps.map(function(e) { return e.personnel_code; }).join(', ') : '—';
           var bg    = emps.length ? (idx % 2 === 0 ? lightBg : altBg) : '#ffffff';
+          routeTotal += emps.length;
           tableBody.push([
             { text: String(stop.sort_order), fontSize: 7.5, alignment: 'center', fillColor: bg },
             { text: stop.name,               fontSize: 7.5, bold: true,          fillColor: bg },
@@ -2584,6 +2586,13 @@ textarea { height: 72px; resize: vertical; }
             { text: codes,                   fontSize: 7.5,                      fillColor: bg },
           ]);
         });
+        // Toplam satırı
+        tableBody.push([
+          { text: '',                       fontSize: 7.5, fillColor: darkHdr },
+          { text: 'TOPLAM',                 fontSize: 7.5, bold: true, fillColor: darkHdr, color: '#fff' },
+          { text: String(routeTotal),       fontSize: 7.5, bold: true, alignment: 'center', fillColor: darkHdr, color: '#fff' },
+          { text: '',                       fontSize: 7.5, fillColor: darkHdr },
+        ]);
 
         groupStack.push({
           table: { headerRows: 1, widths: [18, 110, 22, '*'], body: tableBody },
