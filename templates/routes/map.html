@@ -411,6 +411,7 @@ textarea { height: 72px; resize: vertical; }
       <button id="toggle-all-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()">Tümünü Göster</button>
       <button id="calculate-all-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()">Hesapla Tümü</button>
       <button id="export-pdf-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()" title="Atama tablosunu PDF olarak indir">PDF İndir</button>
+      <button id="toggle-stops-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()" title="Durakları göster/gizle">Durakları Gizle</button>
       <span class="toggle-arrow">▼</span>
     </div>
   </div>
@@ -676,20 +677,27 @@ textarea { height: 72px; resize: vertical; }
 
   const map = L.map('map').setView([40.1826, 29.0665], 12);
 
+  // Blank white tile layer (canvas-based, no network request)
+  const blankLayer = L.GridLayer.extend({
+    createTile: function() {
+      const c = document.createElement('canvas');
+      c.width = c.height = 256;
+      c.getContext('2d').fillStyle = '#ffffff';
+      c.getContext('2d').fillRect(0, 0, 256, 256);
+      return c;
+    }
+  });
+
   const TILES = {
+    white: new blankLayer({ attribution: '', maxZoom: 19 }),
+    light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
     osm:   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',             { attribution: '&copy; OpenStreetMap', maxZoom: 19 }),
     dark:  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
-    light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
-    yandex: L.tileLayer('https://core-renderer-tile.maps.yandex.net/tiles?l=map&v=21.06.18-0-b210618143000&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', {
-      attribution: '&copy; Yandex',
-      maxZoom: 19,
-      subdomains: ['01', '02', '03', '04']
-    })
   };
-  const TILE_CYCLE = ['osm', 'dark', 'light', 'yandex'];
-  const TILE_LABELS = { osm: 'Standart', dark: 'Koyu', light: 'Açık', yandex: 'Yandex' };
-  let currentTileMode = 'osm';
-  TILES.osm.addTo(map);
+  const TILE_CYCLE  = ['white', 'light', 'osm', 'dark'];
+  const TILE_LABELS = { white: 'Beyaz', light: 'Açık', osm: 'Standart', dark: 'Koyu' };
+  let currentTileMode = 'white';
+  TILES.white.addTo(map);
 
   document.getElementById('map-mode-btn').addEventListener('click', function() {
     map.removeLayer(TILES[currentTileMode]);
@@ -738,8 +746,9 @@ textarea { height: 72px; resize: vertical; }
     }
     map.fitBounds(poly.getBounds(), { padding: [30, 30] });
 
-    const stopGroup = L.layerGroup().addTo(map);
+    const stopGroup = L.layerGroup();
     (r.stops || []).forEach(function(s) { drawStopMarker(s, r, stopGroup); });
+    if (stopsVisible) stopGroup.addTo(map);
     poly.on('click', function(e) { openStopPopup(e.latlng, r); });
 
     activeRoutes[r.id] = { polyline: poly, markerGroup: mg, stopGroup: stopGroup, isochroneGroup: null };
@@ -2471,6 +2480,20 @@ textarea { height: 72px; resize: vertical; }
   document.getElementById('hamburger-btn').addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('collapsed');
     setTimeout(function() { map.invalidateSize(); }, 260);
+  });
+
+  // Durakları gizle/göster
+  let stopsVisible = true;
+  document.getElementById('toggle-stops-btn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    stopsVisible = !stopsVisible;
+    Object.values(activeRoutes).forEach(function(ar) {
+      if (!ar.stopGroup) return;
+      if (stopsVisible) ar.stopGroup.addTo(map);
+      else map.removeLayer(ar.stopGroup);
+    });
+    this.textContent = stopsVisible ? 'Durakları Gizle' : 'Durakları Göster';
+    this.classList.toggle('active', !stopsVisible);
   });
 
   // ── PDF Export ────────────────────────────────────────────────────────────
