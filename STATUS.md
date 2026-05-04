@@ -345,17 +345,18 @@ Import progress ekranına monospace log paneli eklendi. Her satır işlenirken:
 | Marker renk güncellemesi | ✅ Çalışıyor |
 | Harita açık/koyu mod | ✅ Çalışıyor |
 | Özel renk seçici | ✅ Çalışıyor |
-| Çalışan içe aktarma (Yandex geocode) | ✅ Çalışıyor (567/596 başarılı) |
+| Çalışan içe aktarma (Yandex geocode) | ✅ Çalışıyor (Yandex API aktif) |
 | Çalışan haritada gösterme | ✅ Çalışıyor |
-| Geocode analiz (renklendirme + Mapbox recheck) | ✅ Tamamlandı |
+| Geocode analiz (Yandex öncelikli) | ✅ Tamamlandı |
 | Çalışan konum güncelleme API (`update-location`) | ✅ Çalışıyor |
 | İzokron (ORS) hesaplama + cache | ✅ Çalışıyor |
 | Çalışan-durak otomatik eşleştirme (`assign-all`) | ✅ Çalışıyor |
 | İzokron haritada görselleştirme | ✅ Çalışıyor |
 | Durak yoğunluğu (Hesapla / Hesapla Tümü) | ✅ Çalışıyor |
 | Hatalı adres düzeltme (25 kayıt — manuel) | ⚠️ Bekliyor |
-| Koordinat girerek çalışan ekleme | ⏳ Geliştirilmedi |
-| Haritadan sürükle-bırak konum güncelleme | ⏳ Geliştirilmedi |
+| Koordinat girerek çalışan ekleme | ✅ Çalışıyor |
+| Haritadan sürükle-bırak konum güncelleme | ✅ Çalışıyor |
 | Çalışan yönetimi (UI) | ✅ Çalışıyor |
+| Harita Katmanları (OSM, Dark, Light, Yandex) | ✅ Çalışıyor |
 | Araç yönetimi | ⏳ Geliştirilmedi |
 | Rota optimizasyonu | ⏳ Geliştirilmedi |

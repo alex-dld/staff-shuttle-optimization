@@ -6,7 +6,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-MAPBOX_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places/{query}.json'
+YANDEX_URL = 'https://geocode-maps.yandex.ru/v1/'
 
 
 _ABBR = {
@@ -44,29 +44,39 @@ def address_match_score(address: str, api_address: str):
 def geocode_address(address: str) -> dict:
     try:
         logger.debug('geocode → "%s"', address)
-        import urllib.parse
-        url = MAPBOX_URL.format(query=urllib.parse.quote(address))
-        resp = requests.get(url, params={
-            'access_token': settings.MAPBOX_API_KEY,
-            'language': 'tr',
-            'country': 'TR',
-            'proximity': '29.06,40.19',
-            'limit': 1,
+        if not settings.YANDEX_API_KEY:
+            logger.error('Yandex API key is missing')
+            return {'ok': False, 'reason': 'api_error', 'detail': 'Yandex API key not configured'}
+
+        resp = requests.get(YANDEX_URL, params={
+            'apikey': settings.YANDEX_API_KEY,
+            'geocode': address,
+            'lang': 'tr_TR',
+            'll': '29.06,40.19',  # Bursa merkezi
+            'spn': '0.8,0.6',
+            'results': 1,
+            'format': 'json',
         }, timeout=10)
+        
         logger.debug('geocode HTTP %s  (%.0f ms)', resp.status_code, resp.elapsed.total_seconds() * 1000)
         resp.raise_for_status()
-        features = resp.json().get('features', [])
-        if not features:
+        
+        data = resp.json()
+        members = data.get('response', {}).get('GeoObjectCollection', {}).get('featureMember', [])
+        
+        if not members:
             logger.warning('geocode no_result → "%s"', address)
             return {'ok': False, 'reason': 'no_result'}
-        feature = features[0]
-        lng, lat = feature['center']
-        api_address = feature.get('place_name', '')
-        logger.debug('geocode OK → %s, %s  "%s"', lat, lng, api_address)
+            
+        obj = members[0]['GeoObject']
+        lng_str, lat_str = obj['Point']['pos'].split()
+        api_address = obj.get('metaDataProperty', {}).get('GeocoderMetaData', {}).get('text', '')
+        
+        logger.debug('geocode OK → %s, %s  "%s"', lat_str, lng_str, api_address)
         return {
             'ok': True,
-            'lat': float(lat),
-            'lng': float(lng),
+            'lat': float(lat_str),
+            'lng': float(lng_str),
             'api_address': api_address,
         }
     except requests.RequestException as exc:
