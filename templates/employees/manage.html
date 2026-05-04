@@ -572,6 +572,7 @@
         <div id="import-log" style="margin-top:14px;background:#080810;border:1px solid #1e1e38;border-radius:6px;max-height:180px;overflow-y:auto;font-size:0.74rem;font-family:monospace;padding:8px 10px"></div>
         <div class="modal-actions" style="margin-top:12px">
           <button class="btn-cancel" id="import-bg-btn">Arka Planda Devam Et</button>
+          <button class="btn-bar-delete" id="import-stop-btn">Durdur</button>
         </div>
       </div>
 
@@ -1348,6 +1349,7 @@
 
     let selectedFile = null;
     let importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+    let stopRequested = false;
 
     function showImportSection(name) {
       ['import-upload-area', 'import-conflict-area', 'import-progress-area', 'import-result'].forEach(id => {
@@ -1396,14 +1398,31 @@
 
     async function runImport(rows, force = false) {
       importState = { running: true, total: rows.length, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+      stopRequested = false;
       showImportSection('import-progress-area');
       document.getElementById('import-log').innerHTML = '';
+      document.getElementById('import-stop-btn').disabled = false;
+      document.getElementById('import-stop-btn').textContent = 'Durdur';
       const parsedEl = document.getElementById('prog-parsed');
       if (parsedEl) parsedEl.textContent = '(' + rows.length + ' satır okundu)';
       updateProgressUI();
 
       for (const row of rows) {
+        if (stopRequested) {
+          appendLog('#f0a030', '⏹ Kullanıcı tarafından durduruldu (' + importState.done + '/' + rows.length + ')');
+          break;
+        }
         appendLog('#555', '[' + importState.done + '/' + rows.length + '] ' + row.code + ' → ' + row.address);
+
+        // API çağrısı yapmadan atla: zaten ok kayıtlı ve force=false
+        if (!force && row.exists && row.existing_status === 'ok') {
+          importState.done++;
+          importState.skipped++;
+          appendLog('#555', '  – atlandı (API çağrısı yapılmadı)');
+          updateProgressUI();
+          continue;
+        }
+
         try {
           const t0 = Date.now();
           const resp = await fetch('/api/employees/import-row/', {
@@ -1433,13 +1452,16 @@
         }
 
         updateProgressUI();
-        // Her 10 kayıtta tabloyu tazele
         if (importState.done % 10 === 0) loadEmployees();
-        // Yandex rate limit ve sunucu yükü için bekleme
-        await new Promise(r => setTimeout(r, 180));
+        // Yandex rate limit — sadece gerçek API çağrısı yapıldıysa bekle
+        if (force || !row.exists || row.existing_status !== 'ok') {
+          await new Promise(r => setTimeout(r, 180));
+        }
       }
 
       importState.running = false;
+      stopRequested = false;
+      document.getElementById('import-stop-btn').disabled = true;
       await loadEmployees();
       if (document.getElementById('import-modal').classList.contains('open')) {
         showResult();
@@ -1505,6 +1527,13 @@
     document.getElementById('open-import-modal').addEventListener('click', openImportModal);
     document.getElementById('import-cancel').addEventListener('click', closeImportModal);
     document.getElementById('import-bg-btn').addEventListener('click', closeImportModal);
+    document.getElementById('import-stop-btn').addEventListener('click', () => {
+      if (!importState.running) return;
+      if (!confirm('Import işlemi durdurulsun mu?\n' + importState.done + '/' + importState.total + ' satır işlendi, geri kalanlar atlanacak.')) return;
+      stopRequested = true;
+      document.getElementById('import-stop-btn').disabled = true;
+      document.getElementById('import-stop-btn').textContent = 'Durduruluyor…';
+    });
     document.getElementById('import-modal').addEventListener('click', e => { if (e.target === document.getElementById('import-modal')) closeImportModal(); });
     document.getElementById('import-again').addEventListener('click', resetImportToUpload);
 
