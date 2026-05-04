@@ -1351,9 +1351,8 @@
 
     let selectedFile = null;
     let importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
-    let activeJobId = null;
-    let pollTimer = null;
-    let renderedLogCount = 0;
+    let importJob = null; // { rows, force, currentIdx, ok, failed, skipped, errors }
+    let importRunning = false;
 
     function showImportSection(name) {
       ['import-upload-area', 'import-conflict-area', 'import-progress-area', 'import-result'].forEach(id => {
@@ -1373,14 +1372,13 @@
 
     function showResult() {
       const { total, ok, failed, skipped, errors } = importState;
-      document.getElementById('res-title').textContent =
-        'Son import: ' + total + ' satır işlendi.';
+      document.getElementById('res-title').textContent = 'Son import: ' + total + ' satır işlendi.';
       document.getElementById('res-ok').textContent = ok;
       document.getElementById('res-fail').textContent = failed;
       document.getElementById('res-skip').textContent = skipped;
       const errList = document.getElementById('res-errors');
       if (errors.length) {
-        errList.innerHTML = errors.slice(0, 20).map(e => `<div>${e.code} — ${e.reason}</div>`).join('');
+        errList.innerHTML = errors.slice(0, 20).map(e => '<div>' + e.code + ' — ' + e.reason + '</div>').join('');
         errList.style.display = 'block';
       } else {
         errList.style.display = 'none';
@@ -1388,92 +1386,97 @@
       showImportSection('import-result');
     }
 
-    function renderLogLines(lines) {
+    function appendLog(text, color) {
       const log = document.getElementById('import-log');
       if (!log) return;
-      const newLines = lines.slice(renderedLogCount);
-      newLines.forEach(({ color, text }) => {
-        const line = document.createElement('div');
-        line.style.color = color;
-        line.style.borderBottom = '1px solid #12122a';
-        line.style.padding = '2px 0';
-        line.textContent = text;
-        log.appendChild(line);
-      });
-      renderedLogCount += newLines.length;
-      if (newLines.length) log.scrollTop = log.scrollHeight;
+      const line = document.createElement('div');
+      line.style.color = color || '#555';
+      line.style.borderBottom = '1px solid #12122a';
+      line.style.padding = '2px 0';
+      line.textContent = text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
     }
 
-    async function startImport(rows, force) {
-      const resp = await fetch('/api/employees/import-start/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify({ rows, force }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Başlatılamadı');
-      return data.job_id;
-    }
+    async function processImport() {
+      if (!importJob) return;
+      importRunning = true;
+      const { rows, force } = importJob;
 
-    function startPolling(jobId) {
-      activeJobId = jobId;
-      renderedLogCount = 0;
-      localStorage.setItem('activeJobId', jobId);
-      importState = { running: true, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
-      showImportSection('import-progress-area');
-      document.getElementById('import-log').innerHTML = '';
-      document.getElementById('import-stop-btn').disabled = false;
-      document.getElementById('import-stop-btn').textContent = 'Durdur';
-      updateProgressUI();
-      pollTimer = setInterval(pollStatus, 1000);
-    }
-
-    async function pollStatus() {
-      if (!activeJobId) return;
-      try {
-        const resp = await fetch('/api/employees/import-status/?job_id=' + activeJobId);
-        if (!resp.ok) return;
-        const data = await resp.json();
-        importState = {
-          running: data.status === 'running',
-          total: data.total, done: data.done,
-          ok: data.ok, failed: data.failed, skipped: data.skipped,
-          errors: data.errors,
-        };
-        updateProgressUI();
-        renderLogLines(data.log);
-        if (data.status !== 'running') {
-          clearInterval(pollTimer);
-          pollTimer = null;
-          localStorage.removeItem('activeJobId');
-          activeJobId = null;
+      while (importJob.currentIdx < rows.length) {
+        if (!importRunning) {
+          appendLog('⏹ Durduruldu (' + importJob.currentIdx + '/' + rows.length + ')', '#f0a030');
+          importState = { running: false, total: rows.length, done: importJob.currentIdx, ok: importJob.ok, failed: importJob.failed, skipped: importJob.skipped, errors: importJob.errors };
+          updateProgressUI();
+          localStorage.removeItem('importJob');
+          importJob = null;
           await loadEmployees();
-          if (document.getElementById('import-modal').classList.contains('open')) {
-            showResult();
-          }
+          if (document.getElementById('import-modal').classList.contains('open')) showResult();
+          return;
         }
-      } catch { /* ağ hatası — bir sonraki tick'te tekrar dener */ }
+
+        const i = importJob.currentIdx;
+        const row = rows[i];
+        appendLog('[' + (i + 1) + '/' + rows.length + '] ' + row.code + ' → ' + row.address);
+
+        try {
+          const resp = await fetch('/api/employees/import-row/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ code: row.code, address: row.address, force }),
+          });
+          const data = await resp.json();
+          if (data.status === 'ok') {
+            importJob.ok++;
+            appendLog('  ✓ ok → ' + (data.api_address || ''), '#4cde8a');
+          } else if (data.status === 'skipped') {
+            importJob.skipped++;
+            appendLog('  – atlandı (API çağrısı yapılmadı)', '#555');
+          } else {
+            importJob.failed++;
+            importJob.errors.push({ code: row.code, reason: data.reason || 'unknown' });
+            appendLog('  ✗ hata: ' + (data.reason || 'unknown'), '#e05a5a');
+          }
+        } catch (err) {
+          importJob.failed++;
+          importJob.errors.push({ code: row.code, reason: 'network_error' });
+          appendLog('  ✗ ağ hatası', '#e05a5a');
+        }
+
+        importJob.currentIdx++;
+        localStorage.setItem('importJob', JSON.stringify(importJob));
+        importState = { running: true, total: rows.length, done: importJob.currentIdx, ok: importJob.ok, failed: importJob.failed, skipped: importJob.skipped, errors: importJob.errors };
+        updateProgressUI();
+
+        await new Promise(r => setTimeout(r, 180));
+      }
+
+      importRunning = false;
+      importState = { ...importState, running: false };
+      localStorage.removeItem('importJob');
+      importJob = null;
+      await loadEmployees();
+      if (document.getElementById('import-modal').classList.contains('open')) showResult();
     }
 
-    async function runImport(rows, force = false) {
+    async function runImport(rows, force) {
+      importJob = { rows, force, currentIdx: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
+      localStorage.setItem('importJob', JSON.stringify(importJob));
+      importState = { running: true, total: rows.length, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
       showImportSection('import-progress-area');
       document.getElementById('import-log').innerHTML = '';
       document.getElementById('prog-parsed').textContent = '(' + rows.length + ' satır okundu)';
-      try {
-        const jobId = await startImport(rows, force);
-        startPolling(jobId);
-      } catch (err) {
-        document.getElementById('import-error').textContent = err.message;
-        document.getElementById('import-error').style.display = 'block';
-        showImportSection('import-upload-area');
-      }
+      document.getElementById('import-stop-btn').disabled = false;
+      document.getElementById('import-stop-btn').textContent = 'Durdur';
+      updateProgressUI();
+      await processImport();
     }
 
     function openImportModal() {
-      if (importState.running || activeJobId) {
+      if (importRunning || (importJob && importJob.currentIdx < (importJob.rows || []).length)) {
         showImportSection('import-progress-area');
         updateProgressUI();
-      } else if (importState.total > 0) {
+      } else if (importState.total > 0 && !importState.running) {
         showResult();
       } else {
         selectedFile = null;
@@ -1491,11 +1494,10 @@
     }
 
     function resetImportToUpload() {
+      importRunning = false;
+      importJob = null;
       importState = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0, errors: [] };
-      activeJobId = null;
-      renderedLogCount = 0;
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-      localStorage.removeItem('activeJobId');
+      localStorage.removeItem('importJob');
       selectedFile = null;
       document.getElementById('import-file-input').value = '';
       document.getElementById('drop-zone').innerHTML = '<div class="drop-icon">📂</div><div>Dosyayı buraya sürükleyin veya tıklayın</div><div class="drop-hint">Yalnızca .xlsx — A: Sicil No, B: Adres</div>';
@@ -1530,15 +1532,11 @@
     document.getElementById('import-cancel').addEventListener('click', closeImportModal);
     document.getElementById('import-bg-btn').addEventListener('click', closeImportModal);
     document.getElementById('import-stop-btn').addEventListener('click', async () => {
-      if (!activeJobId) return;
-      if (!confirm('Import işlemi durdurulsun mu?\n' + importState.done + '/' + importState.total + ' satır işlendi, geri kalanlar atlanacak.')) return;
+      if (!importRunning) return;
+      if (!confirm('Import işlemi durdurulsun mu?\nGeri kalan satırlar atlanacak.')) return;
+      importRunning = false;
       document.getElementById('import-stop-btn').disabled = true;
       document.getElementById('import-stop-btn').textContent = 'Durduruluyor…';
-      await fetch('/api/employees/import-stop/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify({ job_id: activeJobId }),
-      });
     });
     document.getElementById('import-modal').addEventListener('click', e => { if (e.target === document.getElementById('import-modal')) closeImportModal(); });
     document.getElementById('import-again').addEventListener('click', resetImportToUpload);
@@ -1577,7 +1575,7 @@
           document.getElementById('conflict-count').textContent = conflicts.length;
           const codeList = conflicts.slice(0, 30).map(r => r.code).join(', ');
           document.getElementById('conflict-codes').textContent =
-            codeList + (conflicts.length > 30 ? ` … ve ${conflicts.length - 30} tane daha` : '');
+            codeList + (conflicts.length > 30 ? ' … ve ' + (conflicts.length - 30) + ' tane daha' : '');
           showImportSection('import-conflict-area');
         } else {
           runImport(parsedRows, false);
@@ -1589,43 +1587,28 @@
       }
     });
 
-    document.getElementById('conflict-keep').addEventListener('click', () => {
-      runImport(parsedRows, false);
-    });
-
-    document.getElementById('conflict-retara').addEventListener('click', () => {
-      runImport(parsedRows, true);
-    });
-
+    document.getElementById('conflict-keep').addEventListener('click', () => { runImport(parsedRows, false); });
+    document.getElementById('conflict-retara').addEventListener('click', () => { runImport(parsedRows, true); });
     document.getElementById('conflict-cancel').addEventListener('click', resetImportToUpload);
 
     // --- Başlangıç ---
     loadEmployees();
 
-    // Sayfa yenilenince aktif import job varsa polling'e devam et
-    const savedJobId = localStorage.getItem('activeJobId');
-    if (savedJobId) {
-      fetch('/api/employees/import-status/?job_id=' + savedJobId)
-        .then(r => r.json())
-        .then(data => {
-          if (data.status === 'running') {
-            activeJobId = savedJobId;
-            renderedLogCount = 0;
-            importState = {
-              running: true,
-              total: data.total, done: data.done,
-              ok: data.ok, failed: data.failed, skipped: data.skipped,
-              errors: data.errors,
-            };
-            renderLogLines(data.log);
-            document.getElementById('import-stop-btn').disabled = false;
-            pollTimer = setInterval(pollStatus, 1000);
-          } else {
-            localStorage.removeItem('activeJobId');
-          }
-        })
-        .catch(() => localStorage.removeItem('activeJobId'));
-    }
+    // Sayfa yenilenince aktif import varsa localStorage'dan devam et
+    try {
+      const savedJob = localStorage.getItem('importJob');
+      if (savedJob) {
+        importJob = JSON.parse(savedJob);
+        if (importJob && importJob.currentIdx < (importJob.rows || []).length) {
+          importState = { running: true, total: importJob.rows.length, done: importJob.currentIdx, ok: importJob.ok, failed: importJob.failed, skipped: importJob.skipped, errors: importJob.errors };
+          updateProgressUI();
+          processImport();
+        } else {
+          localStorage.removeItem('importJob');
+          importJob = null;
+        }
+      }
+    } catch { localStorage.removeItem('importJob'); importJob = null; }
   </script>
 </body>
 </html>
