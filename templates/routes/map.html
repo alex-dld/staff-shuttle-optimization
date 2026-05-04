@@ -2641,7 +2641,7 @@ textarea { height: 72px; resize: vertical; }
         // Grubun sayfada başladığı Y pozisyonu > 380pt ise (içerik alanının ~%48'i) yeni sayfaya geç
         if (node.id === 'group' && previousNodesOnPage.length > 0) {
           var top = node.startPosition && node.startPosition.top;
-          return top != null && top > 380;
+          return top != null && top > 590;
         }
         return false;
       },
