@@ -460,7 +460,7 @@
             <th data-sort="address">Adres <span class="sort-icon">⇅</span></th>
             <th data-sort="apiAddr">API Adresi <span class="sort-icon">⇅</span></th>
             <th data-sort="ops">Operasyonlar <span class="sort-icon">⇅</span></th>
-            <th class="no-sort">Adres Uyumu</th>
+            <th data-sort="score">Adres Uyumu <span class="sort-icon">⇅</span></th>
             <th data-sort="status">Durum <span class="sort-icon">⇅</span></th>
             <th class="no-sort"></th>
           </tr>
@@ -470,7 +470,15 @@
             <td><input class="filter-input" id="f-address" placeholder="Ara…"></td>
             <td><input class="filter-input" id="f-api" placeholder="Ara…"></td>
             <td><input class="filter-input" id="f-ops" placeholder="Ara…"></td>
-            <td></td>
+            <td>
+              <select class="filter-input" id="f-score">
+                <option value="">Tümü</option>
+                <option value="high">≥%75</option>
+                <option value="mid">%50–74</option>
+                <option value="low"><%50</option>
+                <option value="none">—</option>
+              </select>
+            </td>
             <td>
               <select class="filter-input" id="f-status">
                 <option value="">Tümü</option>
@@ -707,7 +715,7 @@
     let totalCount = 0;
     const PAGE_SIZE = 50;
     let sortCol = null, sortDir = 1;
-    let filters = { code: '', address: '', api: '', ops: '', status: '' };
+    let filters = { code: '', address: '', api: '', ops: '', score: '', status: '' };
     let filterTimeout = null;
     let addPreviewData = null;
     let previewMap = null;
@@ -724,9 +732,10 @@
       if (filters.address) p.set('address', filters.address);
       if (filters.api)     p.set('api_address', filters.api);
       if (filters.ops)     p.set('workspace_name', filters.ops);
+      if (filters.score)   p.set('score', filters.score);
       if (filters.status)  p.set('status', filters.status);
       if (sortCol) {
-        const fieldMap = { code: 'personnel_code', address: 'address', apiAddr: 'api_address', status: 'status' };
+        const fieldMap = { code: 'personnel_code', address: 'address', apiAddr: 'api_address', score: 'score', status: 'status' };
         const f = fieldMap[sortCol];
         if (f) p.set('ordering', (sortDir === -1 ? '-' : '') + f);
       }
@@ -916,6 +925,7 @@
     document.getElementById('f-address').addEventListener('input', e => { filters.address = e.target.value.toLowerCase(); scheduleLoad(); });
     document.getElementById('f-api').addEventListener('input',     e => { filters.api     = e.target.value.toLowerCase(); scheduleLoad(); });
     document.getElementById('f-ops').addEventListener('input',     e => { filters.ops     = e.target.value.toLowerCase(); scheduleLoad(); });
+    document.getElementById('f-score').addEventListener('change',  e => { filters.score   = e.target.value; currentPage = 1; loadEmployees(); });
     document.getElementById('f-status').addEventListener('change', e => { filters.status  = e.target.value; currentPage = 1; loadEmployees(); });
 
 

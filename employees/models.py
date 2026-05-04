@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from .utils import address_match_score
 
 
 class ImportJob(models.Model):
@@ -34,7 +35,12 @@ class Employee(models.Model):
     lat = models.FloatField(null=True, blank=True)
     lng = models.FloatField(null=True, blank=True)
     geocode_status = models.CharField(max_length=10, choices=GEOCODE_STATUS, default='pending')
+    address_score = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        self.address_score = address_match_score(self.address, self.api_address)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.personnel_code
