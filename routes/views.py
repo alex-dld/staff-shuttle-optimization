@@ -15,12 +15,26 @@ from .serializers import RouteGroupSerializer, RouteSerializer, StopSerializer
 from .services import parse_google_maps_url, get_route_from_mapbox, get_isochrone_from_ors, get_walking_matrix_from_ors
 
 
+WALK_METERS = 1200
+
+
 def _valid_uuid(value):
     try:
         UUID(str(value))
         return True
     except (TypeError, ValueError):
         return False
+
+
+def _isochrone_stale(stop) -> bool:
+    """Return True if the cached isochrone is missing or wasn't generated with WALK_METERS."""
+    if not stop.isochrone:
+        return True
+    try:
+        cached_range = stop.isochrone['features'][0]['properties']['value']
+        return int(cached_range) != WALK_METERS
+    except (KeyError, IndexError, TypeError, ValueError):
+        return True
 
 
 def map_view(request, workspace_id):
@@ -91,12 +105,12 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
 
             # Phase 1: tüm durakların izokronlarını önceden cache'le
             for stop in all_stops:
-                if not stop.isochrone:
+                if _isochrone_stale(stop):
                     if not settings.ORS_API_KEY:
                         return Response({'error': 'ORS_API_KEY sunucuda tanımlı değil.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                     for attempt in range(5):
                         try:
-                            stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, 1200, settings.ORS_API_KEY)
+                            stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, WALK_METERS, settings.ORS_API_KEY)
                             stop.save(update_fields=['isochrone'])
                             time.sleep(2)
                             break
@@ -222,10 +236,10 @@ class RouteViewSet(viewsets.ModelViewSet):
         # Phase 1: ensure all stops have an isochrone cached
         import time
         for stop in stops:
-            if not stop.isochrone:
+            if _isochrone_stale(stop):
                 for attempt in range(5):
                     try:
-                        stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, 1200, settings.ORS_API_KEY)
+                        stop.isochrone = get_isochrone_from_ors(stop.latitude, stop.longitude, WALK_METERS, settings.ORS_API_KEY)
                         stop.save(update_fields=['isochrone'])
                         time.sleep(2)
                         break
@@ -389,11 +403,10 @@ class StopViewSet(viewsets.ModelViewSet):
         stop = self.get_object()
 
         # Fetch or refresh isochrone
-        meters = int(request.query_params.get('meters', 1200))
-        if not stop.isochrone:
+        if _isochrone_stale(stop):
             try:
                 stop.isochrone = get_isochrone_from_ors(
-                    stop.latitude, stop.longitude, meters, settings.ORS_API_KEY
+                    stop.latitude, stop.longitude, WALK_METERS, settings.ORS_API_KEY
                 )
                 stop.save(update_fields=['isochrone'])
             except Exception as exc:
@@ -420,7 +433,7 @@ class StopViewSet(viewsets.ModelViewSet):
         return Response({
             'stop_id': str(stop.id),
             'stop_name': stop.name,
-            'meters': meters,
+            'meters': WALK_METERS,
             'employee_count': len(nearby),
             'employees': nearby,
             'isochrone': stop.isochrone,
