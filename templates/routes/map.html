@@ -2531,8 +2531,8 @@ textarea { height: 72px; resize: vertical; }
       layout: 'noBorders', margin: [0, 0, 0, 10],
     });
 
-    GROUPS_DATA.forEach(function(group, groupIdx) {
-      // Grup başlığı — ilk gruptan sonrakiler yeni sayfadan başlar
+    GROUPS_DATA.forEach(function(group) {
+      // Grup başlığı — pageBreakBefore callback sayesinde sığmıyorsa yeni sayfaya geçer
       content.push({
         table: { widths: ['*'], body: [[{
           text: group.name.toUpperCase(),
@@ -2540,7 +2540,7 @@ textarea { height: 72px; resize: vertical; }
         }]] },
         layout: 'noBorders',
         margin: [0, 0, 0, 3],
-        pageBreak: groupIdx > 0 ? 'before' : undefined,
+        id: 'groupHeader',
       });
 
       (group.routes || []).forEach(function(route) {
@@ -2620,6 +2620,12 @@ textarea { height: 72px; resize: vertical; }
 
     return {
       content: content,
+      pageBreakBefore: function(node, followingNodesOnPage, nodesOnNextPage, previousNodesOnPage) {
+        // Grup başlığı sayfada az yer kaldıysa (kendinden sonra 3'ten az node geliyorsa) yeni sayfaya geç
+        return node.id === 'groupHeader'
+          && previousNodesOnPage.length > 0
+          && followingNodesOnPage.length < 4;
+      },
       footer: function(cur, total) {
         return { text: 'Servis Optimizasyonu  ·  Sayfa ' + cur + ' / ' + total, alignment: 'center', fontSize: 7, color: '#bbbbbb', margin: [0, 4, 0, 0] };
       },
