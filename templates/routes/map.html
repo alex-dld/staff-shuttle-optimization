@@ -1799,8 +1799,9 @@ textarea { height: 72px; resize: vertical; }
       const resp = await fetch('/api/employees/?workspace=' + WORKSPACE_ID);
       if (!resp.ok) return;
       const data = await resp.json();
-      WORKSPACE_EMPLOYEES = data;
-      WORKSPACE_EMP_IDS = new Set(data.map(function(e) { return e.id; }));
+      const results = data.results || data;
+      WORKSPACE_EMPLOYEES = results;
+      WORKSPACE_EMP_IDS = new Set(results.map(function(e) { return e.id; }));
       document.getElementById('emp-count').textContent = WORKSPACE_EMP_IDS.size;
     } catch (err) { console.error('[loadWorkspaceEmployees]', err); }
   }
@@ -1915,8 +1916,11 @@ textarea { height: 72px; resize: vertical; }
 
     if (!ALL_EMPLOYEES.length) {
       try {
-        const resp = await fetch('/api/employees/');
-        if (resp.ok) ALL_EMPLOYEES = await resp.json();
+      const resp = await fetch('/api/employees/?all=1');
+      if (resp.ok) {
+        const data = await resp.json();
+        ALL_EMPLOYEES = data.results || data;
+      }
       } catch (err) {
         document.getElementById('emp-list').innerHTML = '<div class="emp-empty">Yükleme hatası.</div>';
         return;
