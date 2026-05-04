@@ -10,12 +10,19 @@ from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from workspaces.models import Workspace
 from .models import Employee, ImportJob
 from .serializers import EmployeeSerializer, EmployeeCreateSerializer
 from .utils import geocode_address
+
+
+class EmployeePagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 200
 
 
 def _run_import_job(job_id, rows, force):
@@ -105,15 +112,38 @@ def sample_excel(_request):
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+    pagination_class = EmployeePagination
+
+    _ORDERING_MAP = {
+        'personnel_code': 'personnel_code', '-personnel_code': '-personnel_code',
+        'address': 'address', '-address': '-address',
+        'api_address': 'api_address', '-api_address': '-api_address',
+        'status': 'geocode_status', '-status': '-geocode_status',
+    }
+
+    def _apply_filters(self, qs):
+        p = self.request.query_params
+        if code := p.get('code'):
+            qs = qs.filter(personnel_code__icontains=code)
+        if address := p.get('address'):
+            qs = qs.filter(address__icontains=address)
+        if api_address := p.get('api_address'):
+            qs = qs.filter(api_address__icontains=api_address)
+        if workspace_name := p.get('workspace_name'):
+            qs = qs.filter(workspaces__name__icontains=workspace_name).distinct()
+        if geocode_status := p.get('status'):
+            qs = qs.filter(geocode_status=geocode_status)
+        if workspace_id := p.get('workspace'):
+            qs = qs.filter(workspaces__id=workspace_id)
+        ordering = self._ORDERING_MAP.get(p.get('ordering', ''), 'personnel_code')
+        return qs.order_by(ordering)
 
     def get_queryset(self):
-        if self.action != 'list':
-            return Employee.objects.all()
-        show_all = self.request.query_params.get('all') == '1'
-        qs = Employee.objects.all() if show_all else Employee.objects.filter(geocode_status='ok')
-        workspace_id = self.request.query_params.get('workspace')
-        if workspace_id:
-            qs = qs.filter(workspaces__id=workspace_id)
+        qs = Employee.objects.prefetch_related('workspaces').all()
+        if self.action == 'list':
+            if self.request.query_params.get('all') != '1':
+                qs = qs.filter(geocode_status='ok')
+            qs = self._apply_filters(qs)
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -335,6 +365,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             'total': ok_count + failed_count + skipped_count,
             'errors': errors[:20],
         })
+
+    @action(detail=False, methods=['delete'], url_path='destroy-all')
+    def destroy_all(self, _request):
+        qs = self._apply_filters(Employee.objects.prefetch_related('workspaces').all())
+        count, _ = qs.delete()
+        return Response({'deleted': count})
 
     @action(detail=False, methods=['post'], url_path='assign')
     def assign(self, request):

@@ -460,7 +460,7 @@
             <th data-sort="address">Adres <span class="sort-icon">⇅</span></th>
             <th data-sort="apiAddr">API Adresi <span class="sort-icon">⇅</span></th>
             <th data-sort="ops">Operasyonlar <span class="sort-icon">⇅</span></th>
-            <th data-sort="score">Adres Uyumu <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Adres Uyumu</th>
             <th data-sort="status">Durum <span class="sort-icon">⇅</span></th>
             <th class="no-sort"></th>
           </tr>
@@ -470,15 +470,7 @@
             <td><input class="filter-input" id="f-address" placeholder="Ara…"></td>
             <td><input class="filter-input" id="f-api" placeholder="Ara…"></td>
             <td><input class="filter-input" id="f-ops" placeholder="Ara…"></td>
-            <td>
-              <select class="filter-input" id="f-score">
-                <option value="">Tümü</option>
-                <option value="high">≥%75</option>
-                <option value="mid">%50–74</option>
-                <option value="low"><%50</option>
-                <option value="none">—</option>
-              </select>
-            </td>
+            <td></td>
             <td>
               <select class="filter-input" id="f-status">
                 <option value="">Tümü</option>
@@ -708,11 +700,15 @@
   </div>
 
   <script>
-    let allEmployees = [];
+    let currentPageEmployees = [];
     let selectedIds = new Set();
-    let lastFiltered = [];
     let currentPage = 1;
-    const PAGE_SIZE = 25;
+    let totalPages = 1;
+    let totalCount = 0;
+    const PAGE_SIZE = 50;
+    let sortCol = null, sortDir = 1;
+    let filters = { code: '', address: '', api: '', ops: '', status: '' };
+    let filterTimeout = null;
     let addPreviewData = null;
     let previewMap = null;
     let previewMarker = null;
@@ -722,20 +718,44 @@
       return v ? v.pop() : '';
     }
 
+    function buildParams() {
+      const p = new URLSearchParams({ all: '1', page: currentPage });
+      if (filters.code)    p.set('code', filters.code);
+      if (filters.address) p.set('address', filters.address);
+      if (filters.api)     p.set('api_address', filters.api);
+      if (filters.ops)     p.set('workspace_name', filters.ops);
+      if (filters.status)  p.set('status', filters.status);
+      if (sortCol) {
+        const fieldMap = { code: 'personnel_code', address: 'address', apiAddr: 'api_address', status: 'status' };
+        const f = fieldMap[sortCol];
+        if (f) p.set('ordering', (sortDir === -1 ? '-' : '') + f);
+      }
+      return p;
+    }
+
     // --- Tablo ---
 
     async function loadEmployees() {
       const tbody = document.getElementById('employee-tbody');
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#555">Yükleniyor...</td></tr>';
       try {
-        const res = await fetch('/api/employees/?all=1');
+        const res = await fetch('/api/employees/?' + buildParams());
         const data = await res.json();
-        allEmployees = data.results ?? data;
-        document.getElementById('total-count').textContent = allEmployees.length;
-        applyFiltersAndSort();
+        currentPageEmployees = data.results ?? data;
+        totalCount = data.count ?? currentPageEmployees.length;
+        totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+        document.getElementById('total-count').textContent = totalCount;
+        renderTable(currentPageEmployees);
+        renderPagination();
         updateSelectionBar();
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#e05a5a;padding:32px">Veriler yüklenemedi.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#e05a5a;padding:32px">Veriler yüklenemedi.</td></tr>';
       }
+    }
+
+    function scheduleLoad() {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(() => { currentPage = 1; loadEmployees(); }, 300);
     }
 
     function scoreCell(score) {
@@ -852,63 +872,13 @@
       updateSelectionBar();
     });
 
-    // --- Sıralama & Filtreleme ---
-    let sortCol = null, sortDir = 1;
-    let filters = { code: '', address: '', api: '', ops: '', score: '', status: '' };
-
-    function getSortVal(emp, col) {
-      switch (col) {
-        case 'code':    return emp.personnel_code || '';
-        case 'address': return emp.address || '';
-        case 'apiAddr': return emp.api_address || '';
-        case 'ops':     return (emp.workspace_names || []).join(',');
-        case 'score':   return emp.address_score ?? -1;
-        case 'status':  return emp.geocode_status || '';
-        default: return '';
-      }
-    }
-
-    function applyFiltersAndSort() {
-      let result = allEmployees.filter(emp => {
-        if (filters.code    && !emp.personnel_code.toLowerCase().includes(filters.code)) return false;
-        if (filters.address && !(emp.address || '').toLowerCase().includes(filters.address)) return false;
-        if (filters.api     && !(emp.api_address || '').toLowerCase().includes(filters.api)) return false;
-        if (filters.ops     && !(emp.workspace_names || []).some(n => n.toLowerCase().includes(filters.ops))) return false;
-        if (filters.status  && emp.geocode_status !== filters.status) return false;
-        if (filters.score) {
-          const s = emp.address_score;
-          if (filters.score === 'high' && (s === null || s < 0.75)) return false;
-          if (filters.score === 'mid'  && (s === null || s < 0.5 || s >= 0.75)) return false;
-          if (filters.score === 'low'  && (s === null || s >= 0.5)) return false;
-          if (filters.score === 'none' && s !== null) return false;
-        }
-        return true;
-      });
-      if (sortCol) {
-        result = [...result].sort((a, b) => {
-          const va = getSortVal(a, sortCol), vb = getSortVal(b, sortCol);
-          return va < vb ? -sortDir : va > vb ? sortDir : 0;
-        });
-      }
-      lastFiltered = result;
-      currentPage = 1;
-      renderCurrentPage();
-    }
-
-    function renderCurrentPage() {
-      const total = lastFiltered.length;
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-      currentPage = Math.min(currentPage, totalPages);
-      const start = (currentPage - 1) * PAGE_SIZE;
-      renderTable(lastFiltered.slice(start, start + PAGE_SIZE));
-
+    function renderPagination() {
       const pag = document.getElementById('pagination');
-      if (total > 0) {
-        const end = Math.min(start + PAGE_SIZE, total);
-        document.getElementById('page-info').textContent =
-          (start + 1) + '–' + end + ' / ' + total + ' sonuç';
-        document.getElementById('page-num').textContent =
-          'Sayfa ' + currentPage + ' / ' + totalPages;
+      if (totalCount > 0) {
+        const start = (currentPage - 1) * PAGE_SIZE + 1;
+        const end = Math.min(currentPage * PAGE_SIZE, totalCount);
+        document.getElementById('page-info').textContent = start + '–' + end + ' / ' + totalCount + ' sonuç';
+        document.getElementById('page-num').textContent = 'Sayfa ' + currentPage + ' / ' + totalPages;
         document.getElementById('prev-page').disabled = currentPage === 1;
         document.getElementById('next-page').disabled = currentPage === totalPages;
         pag.style.display = 'flex';
@@ -933,41 +903,38 @@
         });
         th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
         th.querySelector('.sort-icon').textContent = sortDir === 1 ? '▲' : '▼';
-        applyFiltersAndSort();
+        currentPage = 1;
+        loadEmployees();
       });
     });
 
-    document.getElementById('prev-page').addEventListener('click', () => { currentPage--; renderCurrentPage(); });
-    document.getElementById('next-page').addEventListener('click', () => { currentPage++; renderCurrentPage(); });
+    document.getElementById('prev-page').addEventListener('click', () => { currentPage--; loadEmployees(); });
+    document.getElementById('next-page').addEventListener('click', () => { currentPage++; loadEmployees(); });
 
     // Kolon filtreleri
-    document.getElementById('f-code').addEventListener('input',    e => { filters.code    = e.target.value.toLowerCase(); applyFiltersAndSort(); });
-    document.getElementById('f-address').addEventListener('input', e => { filters.address = e.target.value.toLowerCase(); applyFiltersAndSort(); });
-    document.getElementById('f-api').addEventListener('input',     e => { filters.api     = e.target.value.toLowerCase(); applyFiltersAndSort(); });
-    document.getElementById('f-ops').addEventListener('input',     e => { filters.ops     = e.target.value.toLowerCase(); applyFiltersAndSort(); });
-    document.getElementById('f-score').addEventListener('change',  e => { filters.score   = e.target.value;               applyFiltersAndSort(); });
-    document.getElementById('f-status').addEventListener('change', e => { filters.status  = e.target.value;               applyFiltersAndSort(); });
+    document.getElementById('f-code').addEventListener('input',    e => { filters.code    = e.target.value.toLowerCase(); scheduleLoad(); });
+    document.getElementById('f-address').addEventListener('input', e => { filters.address = e.target.value.toLowerCase(); scheduleLoad(); });
+    document.getElementById('f-api').addEventListener('input',     e => { filters.api     = e.target.value.toLowerCase(); scheduleLoad(); });
+    document.getElementById('f-ops').addEventListener('input',     e => { filters.ops     = e.target.value.toLowerCase(); scheduleLoad(); });
+    document.getElementById('f-status').addEventListener('change', e => { filters.status  = e.target.value; currentPage = 1; loadEmployees(); });
 
 
     // Tümünü Sil
     async function deleteAllEmployees() {
-      const n = allEmployees.length;
-      if (!n) { alert('Silinecek çalışan yok.'); return; }
-      if (!confirm(`Tüm ${n} çalışanı silmek istediğinize emin misiniz?\nBu işlem geri alınamaz.`)) return;
-      const ids = allEmployees.map(e => e.id);
-      let failed = 0;
-      for (const id of ids) {
-        try {
-          const resp = await fetch(`/api/employees/${id}/`, {
-            method: 'DELETE',
-            headers: { 'X-CSRFToken': getCookie('csrftoken') },
-          });
-          if (!resp.ok && resp.status !== 204) failed++;
-        } catch { failed++; }
-      }
+      if (!totalCount) { alert('Silinecek çalışan yok.'); return; }
+      if (!confirm(`Tüm ${totalCount} çalışanı silmek istediğinize emin misiniz?\nBu işlem geri alınamaz.`)) return;
+      const params = buildParams();
+      params.delete('page');
+      try {
+        const resp = await fetch('/api/employees/destroy-all/?' + params, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
+        if (!resp.ok) { alert('Silme işlemi başarısız.'); return; }
+      } catch (err) { alert('Bağlantı hatası: ' + err.message); return; }
       selectedIds.clear();
+      currentPage = 1;
       await loadEmployees();
-      if (failed) alert(`${failed} kayıt silinemedi.`);
     }
 
     document.getElementById('delete-all-btn').addEventListener('click', deleteAllEmployees);
@@ -1033,7 +1000,7 @@
     }
 
     function initDragMap() {
-      const emp = allEmployees.find(e => e.id === editEmpId);
+      const emp = currentPageEmployees.find(e => e.id === editEmpId);
       const lat = emp && emp.lat ? emp.lat : 40.1826;
       const lng = emp && emp.lng ? emp.lng : 29.0665;
       setTimeout(() => {
@@ -1057,7 +1024,7 @@
     function openEditModal(id) {
       editEmpId = id;
       editPreviewData = null;
-      const emp = allEmployees.find(e => e.id === id);
+      const emp = currentPageEmployees.find(e => e.id === id);
       document.getElementById('edit-emp-code').textContent = emp ? emp.personnel_code : '';
       document.getElementById('edit-address').value = emp ? (emp.address || '') : '';
       document.getElementById('edit-lat').value = emp && emp.lat ? emp.lat : '';
