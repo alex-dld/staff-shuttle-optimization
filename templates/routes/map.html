@@ -2532,15 +2532,16 @@ textarea { height: 72px; resize: vertical; }
     });
 
     GROUPS_DATA.forEach(function(group) {
-      // Grup başlığı — pageBreakBefore callback sayesinde sığmıyorsa yeni sayfaya geçer
-      content.push({
+      var groupStack = [];
+
+      // Grup başlığı
+      groupStack.push({
         table: { widths: ['*'], body: [[{
           text: group.name.toUpperCase(),
           bold: true, fontSize: 9, color: '#c8c8ff', fillColor: '#1e1e3c', margin: [7, 4, 7, 4],
         }]] },
         layout: 'noBorders',
         margin: [0, 0, 0, 3],
-        id: 'groupHeader',
       });
 
       (group.routes || []).forEach(function(route) {
@@ -2552,8 +2553,7 @@ textarea { height: 72px; resize: vertical; }
         var stops    = route.stops || [];
         var hasAny   = stops.some(function(s) { return (s._assignedEmployees || []).length > 0; });
 
-        // Rota başlığı
-        content.push({
+        groupStack.push({
           table: { widths: ['*'], body: [[{
             text: route.name + '   ' + dirLabel,
             bold: true, fontSize: 8, color: '#ffffff', fillColor: color, margin: [7, 3, 7, 3],
@@ -2562,7 +2562,7 @@ textarea { height: 72px; resize: vertical; }
         });
 
         if (!hasAny) {
-          content.push({ text: 'Henüz atama yapılmamış.', italics: true, fontSize: 7, color: '#999999', margin: [6, 3, 0, 5] });
+          groupStack.push({ text: 'Henüz atama yapılmamış.', italics: true, fontSize: 7, color: '#999999', margin: [6, 3, 0, 5] });
           return;
         }
 
@@ -2585,7 +2585,7 @@ textarea { height: 72px; resize: vertical; }
           ]);
         });
 
-        content.push({
+        groupStack.push({
           table: { headerRows: 1, widths: [18, 110, 22, '*'], body: tableBody },
           layout: {
             hLineWidth: function() { return 0.4; },
@@ -2596,7 +2596,8 @@ textarea { height: 72px; resize: vertical; }
         });
       });
 
-      content.push({ text: '', margin: [0, 3, 0, 0] });
+      // Tüm grubu tek stack olarak ekle; pageBreakBefore bunu kullanarak pozisyon kontrolü yapar
+      content.push({ stack: groupStack, id: 'group', margin: [0, 0, 0, 4] });
     });
 
     // ── Atanamayanlar ──
@@ -2604,27 +2605,45 @@ textarea { height: 72px; resize: vertical; }
     if (unreachable.length) {
       content.push({
         table: { widths: ['*'], body: [[{
-          text: 'ATANAMAYANLAR (' + unreachable.length + ' kişi)',
+          text: 'ATANAMAYANLAR',
           bold: true, fontSize: 9, color: '#fecaca', fillColor: '#7f1d1d', margin: [7, 4, 7, 4],
         }]] },
         layout: 'noBorders', margin: [0, 4, 0, 0],
       });
-
       content.push({
-        text: unreachable.map(function(e) { return e.personnel_code; }).join(', '),
-        fontSize: 7.5,
-        color: '#7f1d1d',
-        margin: [4, 4, 0, 6],
+        table: {
+          headerRows: 1,
+          widths: [36, '*'],
+          body: [
+            [
+              { text: 'Sayı',            bold: true, fontSize: 7.5, alignment: 'center', fillColor: '#991b1b', color: '#fff' },
+              { text: 'Personel Kodları',bold: true, fontSize: 7.5, fillColor: '#991b1b', color: '#fff' },
+            ],
+            [
+              { text: String(unreachable.length), fontSize: 7.5, alignment: 'center', bold: true, fillColor: '#fff7f7' },
+              { text: unreachable.map(function(e) { return e.personnel_code; }).join(', '), fontSize: 7.5, fillColor: '#fff7f7' },
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: function() { return 0.4; },
+          vLineWidth: function() { return 0.4; },
+          hLineColor: function() { return '#fca5a5'; },
+          vLineColor: function() { return '#fca5a5'; },
+        },
+        margin: [0, 0, 0, 6],
       });
     }
 
     return {
       content: content,
       pageBreakBefore: function(node, followingNodesOnPage, nodesOnNextPage, previousNodesOnPage) {
-        // Grup başlığı sayfada az yer kaldıysa (kendinden sonra 3'ten az node geliyorsa) yeni sayfaya geç
-        return node.id === 'groupHeader'
-          && previousNodesOnPage.length > 0
-          && followingNodesOnPage.length < 4;
+        // Grubun sayfada başladığı Y pozisyonu > 380pt ise (içerik alanının ~%48'i) yeni sayfaya geç
+        if (node.id === 'group' && previousNodesOnPage.length > 0) {
+          var top = node.startPosition && node.startPosition.top;
+          return top != null && top > 380;
+        }
+        return false;
       },
       footer: function(cur, total) {
         return { text: 'Servis Optimizasyonu  ·  Sayfa ' + cur + ' / ' + total, alignment: 'center', fontSize: 7, color: '#bbbbbb', margin: [0, 4, 0, 0] };
