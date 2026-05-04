@@ -5,13 +5,9 @@ from .utils import address_match_score
 
 class EmployeeSerializer(serializers.ModelSerializer):
     workspace_names = serializers.SerializerMethodField()
-    address_score = serializers.SerializerMethodField()
 
     def get_workspace_names(self, obj):
         return [w.name for w in obj.workspaces.all()]
-
-    def get_address_score(self, obj):
-        return address_match_score(obj.address, obj.api_address)
 
     class Meta:
         model = Employee

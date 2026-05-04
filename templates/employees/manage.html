@@ -733,8 +733,9 @@
       if (filters.api)     p.set('api_address', filters.api);
       if (filters.ops)     p.set('workspace_name', filters.ops);
       if (filters.status)  p.set('status', filters.status);
-      if (sortCol && sortCol !== 'score') {
-        const fieldMap = { code: 'personnel_code', address: 'address', apiAddr: 'api_address', status: 'status' };
+      if (filters.score)   p.set('score', filters.score);
+      if (sortCol) {
+        const fieldMap = { code: 'personnel_code', address: 'address', apiAddr: 'api_address', status: 'status', score: 'score' };
         const f = fieldMap[sortCol];
         if (f) p.set('ordering', (sortDir === -1 ? '-' : '') + f);
       }
@@ -753,7 +754,7 @@
         totalCount = data.count ?? currentPageEmployees.length;
         totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
         document.getElementById('total-count').textContent = totalCount;
-        renderTable(applyLocalTransforms(currentPageEmployees));
+        renderTable(currentPageEmployees);
         renderPagination();
         updateSelectionBar();
       } catch (e) {
@@ -764,28 +765,6 @@
     function scheduleLoad() {
       clearTimeout(filterTimeout);
       filterTimeout = setTimeout(() => { currentPage = 1; loadEmployees(); }, 300);
-    }
-
-    function applyLocalTransforms(employees) {
-      let result = [...employees];
-      if (filters.score) {
-        result = result.filter(emp => {
-          const s = emp.address_score;
-          if (filters.score === 'high') return s !== null && s !== undefined && s >= 0.75;
-          if (filters.score === 'mid')  return s !== null && s !== undefined && s >= 0.5 && s < 0.75;
-          if (filters.score === 'low')  return s !== null && s !== undefined && s < 0.5;
-          if (filters.score === 'none') return s === null || s === undefined;
-          return true;
-        });
-      }
-      if (sortCol === 'score') {
-        result.sort((a, b) => {
-          const va = a.address_score ?? -1;
-          const vb = b.address_score ?? -1;
-          return sortDir === 1 ? va - vb : vb - va;
-        });
-      }
-      return result;
     }
 
     function scoreCell(score) {
@@ -933,12 +912,9 @@
         });
         th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
         th.querySelector('.sort-icon').textContent = sortDir === 1 ? '▲' : '▼';
-        if (col === 'score') {
-          renderTable(applyLocalTransforms(currentPageEmployees));
-        } else {
-          currentPage = 1;
-          loadEmployees();
-        }
+        
+        currentPage = 1;
+        loadEmployees();
       });
     });
 
@@ -950,7 +926,7 @@
     document.getElementById('f-address').addEventListener('input', e => { filters.address = e.target.value.toLowerCase(); scheduleLoad(); });
     document.getElementById('f-api').addEventListener('input',     e => { filters.api     = e.target.value.toLowerCase(); scheduleLoad(); });
     document.getElementById('f-ops').addEventListener('input',     e => { filters.ops     = e.target.value.toLowerCase(); scheduleLoad(); });
-    document.getElementById('f-score').addEventListener('change',  e => { filters.score = e.target.value; renderTable(applyLocalTransforms(currentPageEmployees)); });
+    document.getElementById('f-score').addEventListener('change',  e => { filters.score   = e.target.value; currentPage = 1; loadEmployees(); });
     document.getElementById('f-status').addEventListener('change', e => { filters.status  = e.target.value; currentPage = 1; loadEmployees(); });
 
 

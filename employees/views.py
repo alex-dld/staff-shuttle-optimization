@@ -56,6 +56,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         'address': 'address', '-address': '-address',
         'api_address': 'api_address', '-api_address': '-api_address',
         'status': 'geocode_status', '-status': '-geocode_status',
+        'score': 'address_score', '-score': '-address_score',
     }
 
     def _apply_filters(self, qs):
@@ -72,15 +73,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             qs = qs.filter(geocode_status=geocode_status)
         if workspace_id := p.get('workspace'):
             qs = qs.filter(workspaces__id=workspace_id)
+            
+        if score_filter := p.get('score'):
+            if score_filter == 'high':
+                qs = qs.filter(address_score__gte=0.75)
+            elif score_filter == 'mid':
+                qs = qs.filter(address_score__gte=0.5, address_score__lt=0.75)
+            elif score_filter == 'low':
+                qs = qs.filter(address_score__lt=0.5)
+            elif score_filter == 'none':
+                qs = qs.filter(address_score__isnull=True)
+                
         ordering = self._ORDERING_MAP.get(p.get('ordering', ''), 'personnel_code')
         return qs.order_by(ordering)
 
     def get_queryset(self):
         qs = Employee.objects.prefetch_related('workspaces').all()
         if self.action == 'list':
+            qs = self._apply_filters(qs)
             if self.request.query_params.get('all') != '1':
                 qs = qs.filter(geocode_status='ok')
-            qs = self._apply_filters(qs)
         return qs
 
     def create(self, request, *args, **kwargs):
