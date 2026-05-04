@@ -187,7 +187,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     status=422,
                 )
             return Response(
-                {'error': 'Yandex API hatası: ' + result.get('detail', '')},
+                {'error': 'Mapbox API hatası: ' + result.get('detail', '')},
                 status=502,
             )
         return Response({'lat': result['lat'], 'lng': result['lng'], 'api_address': result['api_address']})
