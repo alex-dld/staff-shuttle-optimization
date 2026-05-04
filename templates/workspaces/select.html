@@ -129,24 +129,6 @@
       text-align: center;
     }
 
-    .section-divider {
-      margin: 40px 0 20px;
-      border-top: 1px solid #2a2a4a;
-      padding-top: 28px;
-    }
-
-    .manage-card {
-      background: #1a1a2e;
-      border: 1px solid #2a2a4a;
-      border-radius: 10px;
-      padding: 20px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .manage-card-info { display: flex; flex-direction: column; gap: 4px; }
-    .manage-card-title { font-size: 1rem; font-weight: 600; color: #e0e0e0; }
-    .manage-card-sub { font-size: 0.8rem; color: #666; }
 
     /* Modal */
     .modal-backdrop {
@@ -169,61 +151,6 @@
       max-width: 400px;
     }
     .modal h3 { font-size: 1rem; font-weight: 700; color: #e0e0e0; margin-bottom: 20px; }
-    .modal.modal-wide { max-width: 520px; }
-
-    .drop-zone {
-      border: 2px dashed #2a2a4a;
-      border-radius: 8px;
-      padding: 32px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      margin-bottom: 16px;
-    }
-    .drop-zone:hover, .drop-zone.drag-over { border-color: #7c8cf8; background: #1e1e38; }
-    .drop-zone-icon { font-size: 2rem; margin-bottom: 8px; color: #555; }
-    .drop-zone-text { font-size: 0.85rem; color: #888; }
-    .drop-zone-text strong { color: #7c8cf8; }
-    .drop-zone-filename { font-size: 0.82rem; color: #a0a8ff; margin-top: 6px; font-weight: 600; }
-
-    .import-hint { font-size: 0.75rem; color: #555; margin-bottom: 16px; line-height: 1.5; }
-    .import-hint code { background: #0f0f1a; border-radius: 3px; padding: 1px 5px; color: #aaa; font-size: 0.72rem; }
-
-    .result-box {
-      display: none;
-      background: #0f0f1a;
-      border: 1px solid #2a2a4a;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .result-box.visible { display: block; }
-    .result-stats { display: flex; gap: 16px; margin-bottom: 10px; }
-    .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .stat-num { font-size: 1.4rem; font-weight: 700; }
-    .stat-num.ok { color: #4ade80; }
-    .stat-num.fail { color: #f87171; }
-    .stat-num.skip { color: #facc15; }
-    .stat-label { font-size: 0.7rem; color: #666; }
-    .error-list { font-size: 0.75rem; color: #f87171; margin-top: 8px; line-height: 1.6; }
-
-    .spinner {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.85rem;
-      color: #888;
-      margin-bottom: 16px;
-    }
-    .spinner.visible { display: flex; }
-    .spin-dot {
-      width: 18px; height: 18px;
-      border: 2px solid #2a2a4a;
-      border-top-color: #7c8cf8;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
     .field label { font-size: 0.77rem; color: #888; }
@@ -287,59 +214,6 @@
       {% endfor %}
     </div>
 
-    <!-- Bireyleri Yönet -->
-    <div class="section-divider">
-      <div class="top-bar">
-        <h2>Bireyler</h2>
-        <button class="btn-primary" id="open-manage-modal">Bireyleri Yönet</button>
-      </div>
-      <div class="manage-card">
-        <div class="manage-card-info">
-          <div class="manage-card-title">Personel Veritabanı</div>
-          <div class="manage-card-sub">Excel dosyasından personel içe aktarın, geocode ile konum eşleştirin.</div>
-        </div>
-        <span style="font-size:1.6rem;color:#2a2a4a;">👥</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bireyleri Yönet modal -->
-  <div class="modal-backdrop" id="manage-modal">
-    <div class="modal modal-wide">
-      <h3>Bireyleri Yönet</h3>
-
-      <p class="import-hint">
-        Excel dosyası iki sütun içermelidir:<br>
-        <code>A: Personel Kodu</code> &nbsp; <code>B: Adres</code><br>
-        1. satır başlık olabilir, 2. satırdan itibaren okunur.
-      </p>
-
-      <div class="drop-zone" id="drop-zone">
-        <div class="drop-zone-icon">📂</div>
-        <div class="drop-zone-text"><strong>Dosya seçin</strong> veya buraya sürükleyin</div>
-        <div class="drop-zone-filename" id="filename-label"></div>
-        <input type="file" id="excel-file" accept=".xlsx" style="display:none">
-      </div>
-
-      <div class="spinner" id="import-spinner">
-        <div class="spin-dot"></div>
-        <span>İçe aktarılıyor, lütfen bekleyin…</span>
-      </div>
-
-      <div class="result-box" id="result-box">
-        <div class="result-stats">
-          <div class="stat"><span class="stat-num ok" id="res-ok">0</span><span class="stat-label">Eklendi</span></div>
-          <div class="stat"><span class="stat-num skip" id="res-skip">0</span><span class="stat-label">Atlandı</span></div>
-          <div class="stat"><span class="stat-num fail" id="res-fail">0</span><span class="stat-label">Başarısız</span></div>
-        </div>
-        <div class="error-list" id="error-list"></div>
-      </div>
-
-      <div class="modal-actions">
-        <button type="button" class="btn-cancel" id="close-manage-modal">Kapat</button>
-        <button type="button" class="btn-primary" id="import-btn" disabled>İçe Aktar</button>
-      </div>
-    </div>
   </div>
 
   <!-- Create modal -->
@@ -371,96 +245,6 @@
     document.getElementById('open-modal').addEventListener('click', () => modal.classList.add('open'));
     document.getElementById('close-modal').addEventListener('click', () => modal.classList.remove('open'));
     modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
-
-    // Bireyleri Yönet modal
-    const manageModal = document.getElementById('manage-modal');
-    const dropZone    = document.getElementById('drop-zone');
-    const fileInput   = document.getElementById('excel-file');
-    const fileLabel   = document.getElementById('filename-label');
-    const importBtn   = document.getElementById('import-btn');
-    const spinner     = document.getElementById('import-spinner');
-    const resultBox   = document.getElementById('result-box');
-
-    document.getElementById('open-manage-modal').addEventListener('click', () => manageModal.classList.add('open'));
-    document.getElementById('close-manage-modal').addEventListener('click', closeManageModal);
-    manageModal.addEventListener('click', e => { if (e.target === manageModal) closeManageModal(); });
-
-    function closeManageModal() {
-      manageModal.classList.remove('open');
-      fileInput.value = '';
-      fileLabel.textContent = '';
-      importBtn.disabled = true;
-      spinner.classList.remove('visible');
-      resultBox.classList.remove('visible');
-    }
-
-    // Dosya seçimi
-    dropZone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => onFileSelected(fileInput.files[0]));
-
-    // Drag & drop
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      const f = e.dataTransfer.files[0];
-      if (f) onFileSelected(f);
-    });
-
-    function onFileSelected(file) {
-      if (!file || !file.name.endsWith('.xlsx')) {
-        alert('Lütfen .xlsx formatında bir dosya seçin.');
-        return;
-      }
-      fileLabel.textContent = file.name;
-      importBtn.disabled = false;
-      resultBox.classList.remove('visible');
-    }
-
-    // İçe Aktar
-    importBtn.addEventListener('click', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      importBtn.disabled = true;
-      spinner.classList.add('visible');
-      resultBox.classList.remove('visible');
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      try {
-        const resp = await fetch('/api/employees/import-excel/', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': getCookie('csrftoken') },
-          body: formData,
-        });
-        const data = await resp.json();
-
-        if (!resp.ok) {
-          alert(data.error || 'Bir hata oluştu.');
-          return;
-        }
-
-        document.getElementById('res-ok').textContent   = data.ok;
-        document.getElementById('res-skip').textContent = data.skipped;
-        document.getElementById('res-fail').textContent = data.failed;
-
-        const errList = document.getElementById('error-list');
-        if (data.errors && data.errors.length) {
-          errList.textContent = 'Başarısız: ' + data.errors.map(e => e.code).join(', ');
-        } else {
-          errList.textContent = '';
-        }
-        resultBox.classList.add('visible');
-      } catch (err) {
-        alert('Ağ hatası: ' + err.message);
-      } finally {
-        spinner.classList.remove('visible');
-        importBtn.disabled = false;
-      }
-    });
 
     function getCookie(name) {
       const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
