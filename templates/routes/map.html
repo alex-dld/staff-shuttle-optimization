@@ -410,6 +410,7 @@ textarea { height: 72px; resize: vertical; }
       <button id="sort-name-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()" title="İsme göre sırala">A↓Z</button>
       <button id="toggle-all-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()">Tümünü Göster</button>
       <button id="calculate-all-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()">Hesapla Tümü</button>
+      <button id="export-pdf-btn" class="btn-show" style="font-size:0.72rem;padding:4px 9px;" onclick="event.stopPropagation()" title="Atama tablosunu PDF olarak indir">PDF İndir</button>
       <span class="toggle-arrow">▼</span>
     </div>
   </div>
@@ -2470,6 +2471,178 @@ textarea { height: 72px; resize: vertical; }
   document.getElementById('hamburger-btn').addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('collapsed');
     setTimeout(function() { map.invalidateSize(); }, 260);
+  });
+
+  // ── PDF Export ────────────────────────────────────────────────────────────
+  function lightenColor(hex, amount) {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map(function(c) { return c + c; }).join('') : h;
+    const r = parseInt(full.substring(0, 2), 16);
+    const g = parseInt(full.substring(2, 4), 16);
+    const b = parseInt(full.substring(4, 6), 16);
+    const lr = Math.round(r + (255 - r) * amount);
+    const lg = Math.round(g + (255 - g) * amount);
+    const lb = Math.round(b + (255 - b) * amount);
+    return 'rgb(' + lr + ',' + lg + ',' + lb + ')';
+  }
+
+  // PDF content width in pt (A4=595pt, margins 28pt each side → 539pt)
+  var PDF_W = 539;
+
+  function buildReportHTML() {
+    var workspaceName = '{{ workspace.name }}';
+    var today = new Date().toLocaleDateString('tr-TR');
+    var totalRoutes = 0, totalStops = 0, totalEmployees = 0;
+    GROUPS_DATA.forEach(function(g) {
+      g.routes.forEach(function(r) {
+        totalRoutes++;
+        (r.stops || []).forEach(function(s) {
+          totalStops++;
+          totalEmployees += (s._assignedEmployees || []).length;
+        });
+      });
+    });
+
+    // Container is exactly PDF_W px wide so 1px == 1pt — no horizontal overflow possible
+    var W = PDF_W;
+    var html = '<div style="width:' + W + 'px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#222;background:#fff;box-sizing:border-box;overflow:hidden;">'
+      + '<div style="background:#0f0f1a;color:#fff;padding:14px 16px 11px;margin-bottom:14px;">'
+      + '<div style="font-size:15px;font-weight:bold;margin-bottom:3px;">Servis Atama Raporu</div>'
+      + '<div style="font-size:9px;color:#aab;margin-bottom:4px;">' + workspaceName + ' &nbsp;·&nbsp; ' + today + '</div>'
+      + '<div style="font-size:9px;color:#7c8cf8;">' + totalRoutes + ' rota &nbsp;|&nbsp; ' + totalStops + ' durak &nbsp;|&nbsp; ' + totalEmployees + ' çalışan</div>'
+      + '</div>';
+
+    GROUPS_DATA.forEach(function(group) {
+      html += '<div style="margin-bottom:14px;">'
+        + '<div style="background:#1e1e3c;color:#c8c8ff;padding:5px 10px;font-size:10px;font-weight:bold;margin-bottom:6px;">'
+        + group.name.toUpperCase() + '</div>';
+
+      (group.routes || []).forEach(function(route) {
+        var color = route.color || '#7c8cf8';
+        var lightBg = lightenColor(color, 0.90);
+        var altBg   = lightenColor(color, 0.97);
+        var dirLabel = route.direction === 'inbound' ? '&#8592; Geliş' : '&#8594; Gidiş';
+
+        html += '<div style="margin-bottom:8px;">'
+          + '<div style="background:' + color + ';color:#fff;padding:4px 8px;font-size:9px;font-weight:bold;">'
+          + route.name + ' &nbsp; ' + dirLabel + '</div>';
+
+        var stops = route.stops || [];
+        var hasAny = stops.some(function(s) { return (s._assignedEmployees || []).length > 0; });
+
+        if (!hasAny) {
+          html += '<div style="padding:5px 8px;background:#f8f8f8;border:1px solid #ddd;border-top:none;font-style:italic;color:#999;font-size:8px;">Henüz atama yapılmamış.</div>';
+        } else {
+          // Fixed column widths that sum to PDF_W (no overflow)
+          html += '<table style="width:' + W + 'px;table-layout:fixed;border-collapse:collapse;border:1px solid #ddd;border-top:none;">'
+            + '<colgroup>'
+            + '<col style="width:28px;">'
+            + '<col style="width:170px;">'
+            + '<col>'   // takes remaining space
+            + '</colgroup>'
+            + '<thead><tr style="background:' + color + ';color:#fff;">'
+            + '<th style="padding:4px 5px;text-align:center;font-size:8px;border:1px solid rgba(255,255,255,0.25);">#</th>'
+            + '<th style="padding:4px 5px;text-align:left;font-size:8px;border:1px solid rgba(255,255,255,0.25);">Durak</th>'
+            + '<th style="padding:4px 5px;text-align:left;font-size:8px;border:1px solid rgba(255,255,255,0.25);">Personel Kodları</th>'
+            + '</tr></thead><tbody>';
+
+          stops.forEach(function(stop, idx) {
+            var emps = stop._assignedEmployees || [];
+            var codes = emps.length ? emps.map(function(e) { return e.personnel_code; }).join(', ') : '—';
+            var bg = idx % 2 === 0 ? '#fff' : altBg;
+            if (emps.length > 0) bg = (idx % 2 === 0 ? lightBg : altBg);
+            html += '<tr style="background:' + bg + ';">'
+              + '<td style="padding:3px 5px;text-align:center;font-size:8px;border:1px solid #eee;white-space:nowrap;">' + stop.sort_order + '</td>'
+              + '<td style="padding:3px 5px;font-size:8px;font-weight:bold;border:1px solid #eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + stop.name + '</td>'
+              + '<td style="padding:3px 5px;font-size:8px;border:1px solid #eee;word-break:break-word;">' + codes + '</td>'
+              + '</tr>';
+          });
+
+          html += '</tbody></table>';
+        }
+        html += '</div>';
+      });
+
+      html += '</div>';
+    });
+
+    html += '<div style="text-align:center;font-size:7px;color:#bbb;margin-top:10px;padding-top:6px;border-top:1px solid #eee;">Servis Optimizasyonu &nbsp;·&nbsp; ' + today + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  async function exportPDF() {
+    var btn = document.getElementById('export-pdf-btn');
+    btn.disabled = true;
+    btn.textContent = 'Hazırlanıyor...';
+
+    var container = document.createElement('div');
+    // Keep in viewport so html2canvas can render it, hidden behind everything
+    container.style.cssText = 'position:fixed;top:0;left:0;width:' + PDF_W + 'px;background:#fff;z-index:-1;pointer-events:none;';
+    container.innerHTML = buildReportHTML();
+    document.body.appendChild(container);
+
+    try {
+      // Let browser paint the element before capturing
+      await new Promise(function(resolve) { requestAnimationFrame(function() { setTimeout(resolve, 80); }); });
+
+      var canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: PDF_W,
+        windowWidth: PDF_W,
+      });
+
+      var { jsPDF } = window.jspdf;
+      // A4: 210 x 297 mm, margins 10mm each side
+      var marginMm = 10;
+      var pageWmm  = 210;
+      var pageHmm  = 297;
+      var contentWmm = pageWmm - marginMm * 2;
+      var contentHmm = pageHmm - marginMm * 2;
+
+      // How many mm per canvas pixel
+      var mmPerPx = contentWmm / canvas.width;
+      var pageHpx = Math.floor(contentHmm / mmPerPx);   // canvas px per PDF page
+
+      var doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      var totalPages = Math.ceil(canvas.height / pageHpx);
+
+      for (var p = 0; p < totalPages; p++) {
+        if (p > 0) doc.addPage();
+
+        var srcY   = p * pageHpx;
+        var srcH   = Math.min(pageHpx, canvas.height - srcY);
+
+        var slice  = document.createElement('canvas');
+        slice.width  = canvas.width;
+        slice.height = srcH;
+        slice.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+        var imgH = srcH * mmPerPx;
+        doc.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', marginMm, marginMm, contentWmm, imgH);
+      }
+
+      var today = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
+      doc.save('atama-raporu-' + today + '.pdf');
+    } catch (err) {
+      showToast('PDF oluşturma hatası: ' + err.message);
+    } finally {
+      document.body.removeChild(container);
+      btn.disabled = false;
+      btn.textContent = 'PDF İndir';
+    }
+  }
+
+  document.getElementById('export-pdf-btn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (!GROUPS_DATA.length) {
+      showToast('Önce rota gruplarını yükleyin.');
+      return;
+    }
+    exportPDF();
   });
 
 </script>
