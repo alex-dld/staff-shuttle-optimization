@@ -1,3 +1,4 @@
+import threading
 from django.conf import settings
 from django.db import DatabaseError
 from django.shortcuts import render, redirect
@@ -16,6 +17,7 @@ from .services import parse_google_maps_url, get_route_from_mapbox, get_isochron
 
 
 WALK_METERS = 900
+_assign_all_lock = threading.Lock()
 
 
 def _valid_uuid(value):
@@ -84,6 +86,11 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='assign-all')
     def assign_all(self, request):
         import time
+        if not _assign_all_lock.acquire(blocking=False):
+            return Response(
+                {'error': 'Hesaplama zaten devam ediyor, lütfen bekleyin.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         try:
             workspace_id = request.data.get('workspace')
             if not workspace_id or not _valid_uuid(workspace_id):
@@ -198,6 +205,8 @@ class RouteGroupViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             return Response({'error': f'Sunucu hatası: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        finally:
+            _assign_all_lock.release()
 
 
 class RouteViewSet(viewsets.ModelViewSet):
