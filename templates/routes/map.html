@@ -2531,14 +2531,16 @@ textarea { height: 72px; resize: vertical; }
       layout: 'noBorders', margin: [0, 0, 0, 10],
     });
 
-    GROUPS_DATA.forEach(function(group) {
-      // Grup başlığı
+    GROUPS_DATA.forEach(function(group, groupIdx) {
+      // Grup başlığı — ilk gruptan sonrakiler yeni sayfadan başlar
       content.push({
         table: { widths: ['*'], body: [[{
           text: group.name.toUpperCase(),
           bold: true, fontSize: 9, color: '#c8c8ff', fillColor: '#1e1e3c', margin: [7, 4, 7, 4],
         }]] },
-        layout: 'noBorders', margin: [0, 0, 0, 3],
+        layout: 'noBorders',
+        margin: [0, 0, 0, 3],
+        pageBreak: groupIdx > 0 ? 'before' : undefined,
       });
 
       (group.routes || []).forEach(function(route) {
@@ -2608,26 +2610,11 @@ textarea { height: 72px; resize: vertical; }
         layout: 'noBorders', margin: [0, 4, 0, 0],
       });
 
-      var unBody = [[
-        { text: '#',             bold: true, fontSize: 7.5, alignment: 'center', fillColor: '#991b1b', color: '#fff' },
-        { text: 'Personel Kodu', bold: true, fontSize: 7.5, fillColor: '#991b1b', color: '#fff' },
-      ]];
-      unreachable.forEach(function(e, idx) {
-        var bg = idx % 2 === 0 ? '#fff7f7' : '#ffffff';
-        unBody.push([
-          { text: String(idx + 1),   fontSize: 7.5, alignment: 'center', fillColor: bg },
-          { text: e.personnel_code,  fontSize: 7.5, fillColor: bg },
-        ]);
-      });
-
       content.push({
-        table: { headerRows: 1, widths: [18, '*'], body: unBody },
-        layout: {
-          hLineWidth: function() { return 0.4; },
-          vLineWidth: function() { return 0; },
-          hLineColor: function() { return '#fca5a5'; },
-        },
-        margin: [0, 0, 0, 6],
+        text: unreachable.map(function(e) { return e.personnel_code; }).join(', '),
+        fontSize: 7.5,
+        color: '#7f1d1d',
+        margin: [4, 4, 0, 6],
       });
     }
 
