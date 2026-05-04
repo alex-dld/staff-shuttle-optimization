@@ -677,27 +677,15 @@ textarea { height: 72px; resize: vertical; }
 
   const map = L.map('map').setView([40.1826, 29.0665], 12);
 
-  // Blank white tile layer (canvas-based, no network request)
-  const blankLayer = L.GridLayer.extend({
-    createTile: function() {
-      const c = document.createElement('canvas');
-      c.width = c.height = 256;
-      c.getContext('2d').fillStyle = '#ffffff';
-      c.getContext('2d').fillRect(0, 0, 256, 256);
-      return c;
-    }
-  });
-
   const TILES = {
-    white: new blankLayer({ attribution: '', maxZoom: 19 }),
     light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
     osm:   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',             { attribution: '&copy; OpenStreetMap', maxZoom: 19 }),
     dark:  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }),
   };
-  const TILE_CYCLE  = ['white', 'light', 'osm', 'dark'];
-  const TILE_LABELS = { white: 'Beyaz', light: 'Açık', osm: 'Standart', dark: 'Koyu' };
-  let currentTileMode = 'white';
-  TILES.white.addTo(map);
+  const TILE_CYCLE  = ['light', 'osm', 'dark'];
+  const TILE_LABELS = { light: 'Açık', osm: 'Standart', dark: 'Koyu' };
+  let currentTileMode = 'light';
+  TILES.light.addTo(map);
 
   document.getElementById('map-mode-btn').addEventListener('click', function() {
     map.removeLayer(TILES[currentTileMode]);
