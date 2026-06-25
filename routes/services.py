@@ -6,31 +6,40 @@ _COORD_RE = re.compile(r'^(-?\d+\.\d+),(-?\d+\.\d+)$')
 
 
 def parse_google_maps_url(url: str) -> list:
-    # /dir/ segments give the real stop order (origin, vias, destination),
-    # each either a literal "lat,lng" or a named place that needs resolving.
+    # /dir/ segments give the route's literal endpoints; data= carries the
+    # full shape (route-shaping via points plus resolved named places) in
+    # route order, but never repeats a literal coordinate typed in /dir/.
     path_match = re.search(r'/dir/(.+?)(?:/@|$)', url)
     if not path_match:
         return []
 
     segments = [unquote(s).strip() for s in path_match.group(1).split('/') if s.strip()]
+    if not segments:
+        return []
 
-    # Named places are resolved in data= via "!1s<place_id>!2m2!1d<lng>!2d<lat>".
-    # This is distinct from the "!1m2!1d<lng>!2d<lat>!3s<id>" blocks Google embeds
-    # for alternate-route/polyline rendering, which are not real stops.
-    named_place_coords = [
-        {'lat': float(lat_str), 'lng': float(lon_str)}
-        for lon_str, lat_str in re.findall(r'1s[^!]+!2m2!1d(-?\d+\.\d+)!2d(-?\d+\.\d+)', url)
-    ]
+    data_coords: list[dict] = []
+    data_match = re.search(r'data=(.+?)(?:\?|$)', url)
+    if data_match:
+        for lon_str, lat_str in re.findall(r'1d(-?\d+\.\d+)!2d(-?\d+\.\d+)', data_match.group(1)):
+            data_coords.append({'lat': float(lat_str), 'lng': float(lon_str)})
+
+    def same_point(a: dict, b: dict) -> bool:
+        return (round(a['lat'], 4), round(a['lng'], 4)) == (round(b['lat'], 4), round(b['lng'], 4))
 
     result: list[dict] = []
-    place_idx = 0
-    for segment in segments:
-        m = _COORD_RE.match(segment)
-        if m:
-            result.append({'lat': float(m.group(1)), 'lng': float(m.group(2))})
-        elif place_idx < len(named_place_coords):
-            result.append(named_place_coords[place_idx])
-            place_idx += 1
+
+    start_match = _COORD_RE.match(segments[0])
+    if start_match:
+        result.append({'lat': float(start_match.group(1)), 'lng': float(start_match.group(2))})
+
+    result.extend(data_coords)
+
+    if len(segments) > 1:
+        end_match = _COORD_RE.match(segments[-1])
+        if end_match:
+            end = {'lat': float(end_match.group(1)), 'lng': float(end_match.group(2))}
+            if not result or not same_point(result[-1], end):
+                result.append(end)
 
     return result
 
