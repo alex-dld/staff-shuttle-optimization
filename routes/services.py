@@ -6,45 +6,31 @@ _COORD_RE = re.compile(r'^(-?\d+\.\d+),(-?\d+\.\d+)$')
 
 
 def parse_google_maps_url(url: str) -> list:
-
-    # --- 1. All coordinates from data= in route order ---
-    # data= contains the named-place coordinates AND all intermediate via points
-    # that Google Maps uses to define the exact path.
-    data_coords: list[dict] = []
-    data_match = re.search(r'data=(.+?)(?:\?|$)', url)
-    if data_match:
-        for lon_str, lat_str in re.findall(r'1d(-?\d+\.\d+)!2d(-?\d+\.\d+)', data_match.group(1)):
-            data_coords.append({'lat': float(lat_str), 'lng': float(lon_str)})
-
-    # --- 2. Coordinate-based path segments (typically the destination) ---
+    # /dir/ segments give the real stop order (origin, vias, destination),
+    # each either a literal "lat,lng" or a named place that needs resolving.
     path_match = re.search(r'/dir/(.+?)(?:/@|$)', url)
     if not path_match:
         return []
 
-    coord_segments: list[dict] = []
-    for segment in path_match.group(1).split('/'):
-        segment = unquote(segment).strip()
-        if not segment:
-            continue
+    segments = [unquote(s).strip() for s in path_match.group(1).split('/') if s.strip()]
+
+    # Named places are resolved in data= via "!1s<place_id>!2m2!1d<lng>!2d<lat>".
+    # This is distinct from the "!1m2!1d<lng>!2d<lat>!3s<id>" blocks Google embeds
+    # for alternate-route/polyline rendering, which are not real stops.
+    named_place_coords = [
+        {'lat': float(lat_str), 'lng': float(lon_str)}
+        for lon_str, lat_str in re.findall(r'1s[^!]+!2m2!1d(-?\d+\.\d+)!2d(-?\d+\.\d+)', url)
+    ]
+
+    result: list[dict] = []
+    place_idx = 0
+    for segment in segments:
         m = _COORD_RE.match(segment)
         if m:
-            coord_segments.append({'lat': float(m.group(1)), 'lng': float(m.group(2))})
-
-    # --- 3. Merge: data= coords first (already in route order), then any
-    #         coordinate-based destinations not already covered ---
-    seen: set[tuple] = set()
-    result: list[dict] = []
-
-    def add(wp: dict) -> None:
-        key = (round(wp['lat'], 4), round(wp['lng'], 4))
-        if key not in seen:
-            seen.add(key)
-            result.append(wp)
-
-    for wp in data_coords:
-        add(wp)
-    for wp in coord_segments:
-        add(wp)
+            result.append({'lat': float(m.group(1)), 'lng': float(m.group(2))})
+        elif place_idx < len(named_place_coords):
+            result.append(named_place_coords[place_idx])
+            place_idx += 1
 
     return result
 
